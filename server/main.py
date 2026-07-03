@@ -1,8 +1,17 @@
 import os, sys, ctypes, logging
 
+if getattr(sys, 'frozen', False):
+    _LOG_DIR = os.path.dirname(sys.executable)
+else:
+    _LOG_DIR = os.path.dirname(os.path.abspath(__file__))
+
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.join(_LOG_DIR, "pk-pult.log"), encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger("main")
 

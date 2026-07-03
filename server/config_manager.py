@@ -1,6 +1,11 @@
-import json, os, uuid
+import json, os, sys, uuid
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = os.path.dirname(sys.executable)
+else:
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CONFIG_PATH = os.path.join(_BASE_DIR, "config.json")
 
 DEFAULT_CONFIG = {
     "buttons": [

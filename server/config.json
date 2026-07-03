@@ -45,7 +45,9 @@
     {
       "id": "btn_feedf1c5",
       "label": "F11",
-      "keys": []
+      "keys": [
+        "f11"
+      ]
     }
   ]
 }
