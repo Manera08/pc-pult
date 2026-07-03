@@ -1,4 +1,4 @@
-import threading
+import threading, socket, logging
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -66,11 +66,26 @@ def remove_button(btn_id: str):
 
 
 def run_api(host="0.0.0.0", port=8789):
-    t = threading.Thread(
-        target=uvicorn.run,
-        args=(app,),
-        kwargs={"host": host, "port": port, "log_level": "info"},
-        daemon=True,
+    import time, urllib.request
+
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_level="info",
+        access_log=False,
     )
+    server = uvicorn.Server(config)
+
+    t = threading.Thread(target=server.run, daemon=True)
     t.start()
+
+    for _ in range(30):
+        if server.started:
+            break
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/config", timeout=1)
+            break
+        except Exception:
+            time.sleep(0.3)
     return t
