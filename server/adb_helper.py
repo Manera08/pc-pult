@@ -9,6 +9,9 @@ LOCAL_PORT = 8789
 def find_adb():
     candidates = []
 
+    candidates.append(r"C:\adb\platform-tools\adb.exe")
+    candidates.append(r"C:\adb\adb.exe")
+
     try:
         androind_home = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
         if androind_home:
