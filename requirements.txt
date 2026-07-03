@@ -1,0 +1,6 @@
+# ПК-Пульт зависимости
+fastapi>=0.110.0
+uvicorn>=0.29.0
+flet>=0.23.0
+pyautogui>=0.9.54
+keyboard>=0.13.5
