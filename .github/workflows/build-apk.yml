@@ -25,7 +25,7 @@ jobs:
       - name: Build APK
         run: |
           cd client
-          flet build apk --verbose
+          flet build apk --yes --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
