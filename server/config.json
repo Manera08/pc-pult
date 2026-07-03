@@ -3,32 +3,49 @@
     {
       "id": "btn_vol_up",
       "label": "Громкость +",
-      "keys": ["volume_up"]
+      "keys": [
+        "volume_up"
+      ]
     },
     {
       "id": "btn_vol_down",
       "label": "Громкость -",
-      "keys": ["volume_down"]
+      "keys": [
+        "volume_down"
+      ]
     },
     {
       "id": "btn_mute",
       "label": "Выкл. звук",
-      "keys": ["volume_mute"]
+      "keys": [
+        "volume_mute"
+      ]
     },
     {
       "id": "btn_play",
       "label": "Play/Pause",
-      "keys": ["play_pause"]
+      "keys": [
+        "play_pause"
+      ]
     },
     {
       "id": "btn_prev",
       "label": "Пред. трек",
-      "keys": ["prev_track"]
+      "keys": [
+        "prev_track"
+      ]
     },
     {
       "id": "btn_next",
       "label": "След. трек",
-      "keys": ["next_track"]
+      "keys": [
+        "next_track"
+      ]
+    },
+    {
+      "id": "btn_feedf1c5",
+      "label": "F11",
+      "keys": []
     }
   ]
 }

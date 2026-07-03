@@ -1,201 +1,186 @@
 import threading
-import flet as ft
+import tkinter as tk
+from tkinter import ttk, messagebox
 from config_manager import get_buttons, add_button, update_button, delete_button
-from key_handler import start_capture, stop_capture, press_keys
+from key_handler import press_keys
 
 _CAPTURE_ACTIVE = False
 _captured_keys = []
-_capture_target = None
 
 
 def run_gui(api_port=8789):
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8580)
+    root = tk.Tk()
+    root.title("ПК-Пульт — Редактор")
+    root.geometry("750x550")
+    root.minsize(600, 400)
+    app = EditorApp(root)
+    root.mainloop()
 
 
-def main(page: ft.Page):
-    page.title = "ПК-Пульт — Редактор"
-    page.theme_mode = ft.ThemeMode.DARK
-    page.window.width = 800
-    page.window.height = 700
-    page.window.min_width = 600
-    page.window.min_height = 500
+class EditorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self._build_ui()
+        self.refresh_list()
 
-    btn_list = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO)
+    def _build_ui(self):
+        top = ttk.Frame(self.root, padding=8)
+        top.pack(fill=tk.X)
 
-    status_bar = ft.Text("Сервер: запущен", size=12, color=ft.Colors.GREEN_400)
+        ttk.Label(top, text="ПК-Пульт — Редактор конфигурации", font=("Arial", 14, "bold")).pack(side=tk.LEFT)
+        ttk.Button(top, text="+ Добавить кнопку", command=self.add_new).pack(side=tk.RIGHT)
 
-    def refresh_list():
-        btn_list.controls.clear()
+        columns = ("label", "keys", "actions")
+        self.tree = ttk.Treeview(self.root, columns=columns, show="headings", selectmode="browse")
+        self.tree.heading("label", text="Название кнопки")
+        self.tree.heading("keys", text="Комбинация клавиш")
+        self.tree.heading("actions", text="Действия")
+        self.tree.column("label", width=200)
+        self.tree.column("keys", width=250)
+        self.tree.column("actions", width=200)
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+
+        vsb = ttk.Scrollbar(self.root, orient=tk.VERTICAL, command=self.tree.yview)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.configure(yscrollcommand=vsb.set)
+
+        self.tree.bind("<Double-1>", self.on_double_click)
+
+        bottom = ttk.Frame(self.root, padding=8)
+        bottom.pack(fill=tk.X)
+
+        self.status_label = ttk.Label(bottom, text="Сервер: запущен", foreground="green")
+        self.status_label.pack(side=tk.LEFT)
+
+    def refresh_list(self):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
         for btn in get_buttons():
-            btn_list.controls.append(_build_button_row(page, btn, refresh_list))
-        page.update()
+            keys_str = " + ".join(btn.get("keys", [])) if btn.get("keys") else "(нет)"
+            self.tree.insert("", tk.END, iid=btn["id"], values=(btn["label"], keys_str, ""))
 
-    page.add(
-        ft.Row([
-            ft.Text("ПК-Пульт — Редактор конфигурации", size=20, weight=ft.FontWeight.BOLD),
-            ft.Container(expand=True),
-            ft.ElevatedButton("+ Добавить кнопку", icon=ft.Icons.ADD, on_click=lambda e: _add_new(page, refresh_list)),
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        ft.Divider(),
-        ft.Container(
-            content=btn_list,
-            expand=True,
-        ),
-        ft.Divider(),
-        status_bar,
-    )
+    def add_new(self):
+        add_button()
+        self.refresh_list()
 
-    refresh_list()
+    def on_double_click(self, event):
+        item = self.tree.selection()
+        if not item:
+            return
+        btn_id = item[0]
+        btn = None
+        for b in get_buttons():
+            if b["id"] == btn_id:
+                btn = b
+                break
+        if btn:
+            EditDialog(self.root, btn, self.refresh_list)
 
-
-def _build_button_row(page, btn, refresh_cb):
-    btn_id = btn["id"]
-    label = btn.get("label", "?")
-    keys = btn.get("keys", [])
-
-    label_field = ft.TextField(
-        value=label,
-        dense=True,
-        width=200,
-        on_change=lambda e, bid=btn_id: update_button(bid, label=e.control.value),
-    )
-
-    keys_display = ft.Text(
-        value=" + ".join(keys) if keys else "(нет клавиш)",
-        size=13,
-        italic=not keys,
-        width=180,
-        no_wrap=False,
-    )
-
-    capture_btn = ft.IconButton(
-        icon=ft.Icons.KEYBOARD,
-        tooltip="Захватить комбинацию",
-        on_click=lambda e, bid=btn_id: _start_capture(page, bid, refresh_cb),
-    )
-
-    test_btn = ft.IconButton(
-        icon=ft.Icons.PLAY_ARROW,
-        tooltip="Тест нажатия",
-        on_click=lambda e, k=keys: press_keys(k),
-    )
-
-    delete_btn = ft.IconButton(
-        icon=ft.Icons.DELETE_OUTLINE,
-        icon_color=ft.Colors.RED_400,
-        tooltip="Удалить кнопку",
-        on_click=lambda e, bid=btn_id: (_confirm_delete(page, bid, refresh_cb)),
-    )
-
-    return ft.Container(
-        content=ft.Row([
-            label_field,
-            keys_display,
-            capture_btn,
-            test_btn,
-            delete_btn,
-        ], alignment=ft.MainAxisAlignment.START, spacing=8),
-        padding=ft.Padding(left=8, top=4, right=8, bottom=4),
-        border=ft.Border.all(width=0.5, color=ft.Colors.GREY_700),
-        border_radius=6,
-    )
+    def on_close(self):
+        self.root.destroy()
 
 
-def _add_new(page, refresh_cb):
-    add_button()
-    refresh_cb()
+class EditDialog:
+    def __init__(self, parent, btn, refresh_cb):
+        self.btn = btn
+        self.refresh_cb = refresh_cb
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Редактирование кнопки")
+        self.dialog.geometry("450x250")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
 
+        ttk.Label(self.dialog, text="Название:").pack(padx=10, pady=(10, 0), anchor=tk.W)
+        self.label_var = tk.StringVar(value=btn.get("label", ""))
+        self.label_entry = ttk.Entry(self.dialog, textvariable=self.label_var, width=50)
+        self.label_entry.pack(padx=10, pady=4, fill=tk.X)
 
-def _confirm_delete(page, btn_id, refresh_cb):
-    dlg = ft.AlertDialog(
-        title=ft.Text("Подтверждение"),
-        content=ft.Text("Удалить эту кнопку?"),
-        actions=[
-            ft.TextButton("Отмена", on_click=lambda e: _close_dialog(page)),
-            ft.TextButton("Удалить", on_click=lambda e: (_close_dialog(page), delete_button(btn_id), refresh_cb())),
-        ],
-    )
-    page.dialog = dlg
-    dlg.open = True
-    page.update()
+        ttk.Label(self.dialog, text="Комбинация клавиш:").pack(padx=10, pady=(10, 0), anchor=tk.W)
+        self.keys_var = tk.StringVar(value=" + ".join(btn.get("keys", [])) if btn.get("keys") else "")
+        self.keys_entry = ttk.Entry(self.dialog, textvariable=self.keys_var, state="readonly", width=50)
+        self.keys_entry.pack(padx=10, pady=4, fill=tk.X)
 
+        btn_frame = ttk.Frame(self.dialog)
+        btn_frame.pack(pady=10)
 
-def _close_dialog(page):
-    if page.dialog:
-        page.dialog.open = False
-        page.update()
+        ttk.Button(btn_frame, text="Захватить клавиши", command=self.start_capture).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_frame, text="Очистить", command=self.clear_keys).pack(side=tk.LEFT, padx=4)
 
+        test_btn = ttk.Button(btn_frame, text="Тест", command=self.test_press)
+        test_btn.pack(side=tk.LEFT, padx=4)
 
-def _start_capture(page, btn_id, refresh_cb):
-    global _CAPTURE_ACTIVE, _captured_keys, _capture_target
-    if _CAPTURE_ACTIVE:
-        return
+        bottom = ttk.Frame(self.dialog)
+        bottom.pack(fill=tk.X, padx=10, pady=10)
+        ttk.Button(bottom, text="Сохранить", command=self.save).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(bottom, text="Удалить", command=self.delete).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(bottom, text="Отмена", command=self.dialog.destroy).pack(side=tk.RIGHT, padx=4)
 
-    _CAPTURE_ACTIVE = True
-    _captured_keys = []
-    _capture_target = btn_id
+        self.capture_status = ttk.Label(self.dialog, text="", foreground="blue")
+        self.capture_status.pack(pady=4)
 
-    captured_text = ft.Text("Захвачено: ", size=16, weight=ft.FontWeight.BOLD)
-    status_text = ft.Text("Ожидание нажатий...", size=14)
+    def start_capture(self):
+        global _CAPTURE_ACTIVE, _captured_keys
+        if _CAPTURE_ACTIVE:
+            return
 
-    dlg = ft.AlertDialog(
-        title=ft.Text("Захват клавиш"),
-        content=ft.Column([
-            ft.Text("Нажмите нужную комбинацию (до 10 клавиш).\nESC — завершить захват.", size=14),
-            captured_text,
-            status_text,
-        ], tight=True, spacing=10),
-        actions=[
-            ft.TextButton("Готово", on_click=lambda e: _finish_capture(page, btn_id, refresh_cb)),
-            ft.TextButton("Отмена", on_click=lambda e: _cancel_capture(page)),
-        ],
-        modal=True,
-    )
+        _CAPTURE_ACTIVE = True
+        _captured_keys = []
+        self.capture_status.config(text="Нажимайте комбинацию... ESC для завершения", foreground="orange")
+        self.keys_var.set("")
 
-    page.dialog = dlg
-    dlg.open = True
-    page.update()
+        def on_key(event):
+            global _CAPTURE_ACTIVE, _captured_keys
+            if event.event_type == "down":
+                name = event.name
+                if name == "esc" and _captured_keys:
+                    self.finish_capture()
+                    return
+                if name == "esc":
+                    self.cancel_capture()
+                    return
+                if name not in _captured_keys:
+                    _captured_keys.append(name)
+                    self.keys_var.set(" + ".join(_captured_keys))
 
-    def on_key(event):
-        nonlocal captured_text, status_text
-        if event.event_type == "down":
-            name = event.name
-            if name == "esc" and _captured_keys:
-                _finish_capture(page, btn_id, refresh_cb)
-                return
-            if name == "esc":
-                _cancel_capture(page)
-                return
-            if name not in _captured_keys:
-                _captured_keys.append(name)
-                captured_text.value = "Захвачено: " + " + ".join(_captured_keys)
-                status_text.value = f"({len(_captured_keys)} клавиш)"
-                try:
-                    page.update()
-                except Exception:
-                    pass
+        import keyboard as kb
+        kb.hook(on_key)
 
-    import keyboard as kb
-    kb.hook(on_key)
+    def finish_capture(self):
+        global _CAPTURE_ACTIVE
+        _CAPTURE_ACTIVE = False
+        from key_handler import stop_capture
+        stop_capture()
+        self.capture_status.config(text="Комбинация захвачена", foreground="green")
 
+    def cancel_capture(self):
+        global _CAPTURE_ACTIVE, _captured_keys
+        _CAPTURE_ACTIVE = False
+        _captured_keys = []
+        from key_handler import stop_capture
+        stop_capture()
+        self.capture_status.config(text="Захват отменён", foreground="red")
+        self.keys_var.set("")
 
-def _finish_capture(page, btn_id, refresh_cb):
-    global _CAPTURE_ACTIVE
-    _CAPTURE_ACTIVE = False
-    stop_capture()
+    def clear_keys(self):
+        global _captured_keys
+        _captured_keys = []
+        self.keys_var.set("")
+        self.capture_status.config(text="")
 
-    if _captured_keys and btn_id:
-        update_button(btn_id, keys=list(_captured_keys))
+    def test_press(self):
+        press_keys(self.btn.get("keys", []))
 
-    _captured_keys.clear()
-    _close_dialog(page)
-    refresh_cb()
+    def save(self):
+        label = self.label_var.get().strip()
+        keys = list(_captured_keys) if _captured_keys else self.btn.get("keys", [])
+        update_button(self.btn["id"], label=label, keys=keys)
+        self.refresh_cb()
+        self.dialog.destroy()
 
-
-def _cancel_capture(page):
-    global _CAPTURE_ACTIVE
-    _CAPTURE_ACTIVE = False
-    stop_capture()
-    _captured_keys.clear()
-    _close_dialog(page)
-
+    def delete(self):
+        if messagebox.askyesno("Подтверждение", "Удалить эту кнопку?"):
+            delete_button(self.btn["id"])
+            self.refresh_cb()
+            self.dialog.destroy()
