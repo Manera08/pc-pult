@@ -89,10 +89,24 @@ def setup_adb():
 
     logger.info(f"ADB найден: {adb}")
 
+    try:
+        result = subprocess.run(
+            [adb, "devices"],
+            capture_output=True, timeout=5, text=True,
+        )
+        devices = [l for l in result.stdout.strip().split("\n")[1:] if "device" in l and "offline" not in l]
+        if not devices:
+            logger.warning("Нет подключённых устройств. Подключите телефон по USB и включите отладку.")
+            logger.info("Для ручного проброса: adb forward tcp:8789 tcp:8789")
+            return False
+        logger.info(f"Устройства: {len(devices)}")
+    except Exception:
+        pass
+
     success = adb_forward(adb)
     if success:
         logger.info("ADB port forwarding настроен.")
     else:
-        logger.warning("Не удалось настроить ADB forward.")
+        logger.warning("ADB forward не удался. Для ручного проброса выполните: adb forward tcp:8789 tcp:8789")
 
     return success

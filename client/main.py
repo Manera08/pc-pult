@@ -3,7 +3,18 @@ import flet as ft
 
 DEFAULT_WIFI_IP = "192.168.1.100"
 SERVER_PORT = 8789
-CONFIG_CACHE = None
+
+BG = "#0f0f23"
+BG2 = "#1a1a3e"
+BG3 = "#252550"
+ACCENT = "#6c63ff"
+SUCCESS = "#00c853"
+DANGER = "#ff1744"
+FG = "#ffffff"
+FG2 = "#b0b0cc"
+FG3 = "#6a6a8e"
+
+CONNECTED_HOST = None
 
 
 def get_config(host):
@@ -29,46 +40,59 @@ def send_press(host, btn_id):
 
 
 def main(page: ft.Page):
+    global CONNECTED_HOST
     page.title = "ПК-Пульт"
     page.theme_mode = ft.ThemeMode.DARK
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-
-    ip_input = ft.TextField(
-        label="IP адрес ПК",
-        value=DEFAULT_WIFI_IP,
-        width=250,
-        dense=True,
-    )
-
-    status_text = ft.Text("Подключение...", size=14, color=ft.Colors.GREY_400)
+    page.bgcolor = BG
+    page.padding = 0
+    page.spacing = 0
 
     grid = ft.GridView(
         expand=True,
         runs_count=3,
         max_extent=120,
-        child_aspect_ratio=1.2,
-        spacing=10,
-        run_spacing=10,
-        padding=ft.Padding(left=12, top=12, right=12, bottom=12),
+        child_aspect_ratio=1.0,
+        spacing=12,
+        run_spacing=12,
+        padding=ft.Padding(left=16, top=8, right=16, bottom=16),
     )
 
-    progress = ft.ProgressBar(visible=False)
+    status_text = ft.Text("", size=12, color=FG3)
+    progress = ft.ProgressBar(
+        visible=False, color=ACCENT, bgcolor=BG3, height=3,
+    )
+
+    ip_input = ft.TextField(
+        label="IP адрес ПК",
+        value=DEFAULT_WIFI_IP,
+        width=210, height=40, text_size=13,
+        border_color=BG3, focused_border_color=ACCENT,
+        bgcolor=BG2, color=FG, cursor_color=ACCENT,
+    )
 
     def connect(host):
+        global CONNECTED_HOST
         config = get_config(host)
         if config is None:
             status_text.value = "Ошибка подключения"
-            status_text.color = ft.Colors.RED_400
+            status_text.color = DANGER
             progress.visible = False
             page.update()
             return
 
+        CONNECTED_HOST = host
         buttons = config.get("buttons", [])
         grid.controls.clear()
 
-        for btn in buttons:
+        colors = [
+            "#6c63ff", "#ff6b6b", "#00c853", "#ff9100",
+            "#00bcd4", "#e040fb", "#ffd600", "#76ff03",
+        ]
+
+        for i, btn in enumerate(buttons):
             btn_id = btn["id"]
             label = btn.get("label", "?")
+            accent = colors[i % len(colors)]
 
             def make_handler(bid):
                 return lambda e: _on_press(host, bid)
@@ -76,22 +100,24 @@ def main(page: ft.Page):
             tile = ft.Container(
                 content=ft.Column([
                     ft.Container(expand=True),
-                    ft.Text(label, size=13, weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
+                    ft.Text(label, size=13, weight=ft.FontWeight.W_600,
+                            color=FG, text_align=ft.TextAlign.CENTER,
+                            no_wrap=False),
                     ft.Container(expand=True),
-                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                width=120,
-                height=100,
-                bgcolor=ft.Colors.GREY_800,
-                border_radius=12,
-                border=ft.Border.all(width=1, color=ft.Colors.GREY_600),
-                ink=True,
+                ], alignment=ft.MainAxisAlignment.CENTER,
+                   horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                   spacing=2),
+                width=120, height=120,
+                bgcolor=BG2, border_radius=16,
+                border=ft.BorderSide(width=1.5, color=accent + "33"),
+                ink=True, ink_color=accent + "22",
                 on_click=make_handler(btn_id),
-                animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+                animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             )
             grid.controls.append(tile)
 
-        status_text.value = f"Подключено: {host}"
-        status_text.color = ft.Colors.GREEN_400
+        status_text.value = f"● {host}"
+        status_text.color = SUCCESS
         progress.visible = False
         page.update()
 
@@ -99,73 +125,77 @@ def main(page: ft.Page):
         result = send_press(host, btn_id)
         if result is None:
             status_text.value = "Ошибка отправки"
-            status_text.color = ft.Colors.RED_400
-            page.update()
+            status_text.color = DANGER
+        else:
+            status_text.value = f"● {host}"
+            status_text.color = SUCCESS
+        page.update()
 
     def try_connect(e):
         progress.visible = True
         status_text.value = "Подключение..."
-        status_text.color = ft.Colors.GREY_400
+        status_text.color = FG2
         page.update()
-
         host = ip_input.value.strip() or DEFAULT_WIFI_IP
         threading.Thread(target=connect, args=(host,), daemon=True).start()
-
-    connect_btn = ft.ElevatedButton(
-        "Подключиться",
-        icon=ft.Icons.WIFI,
-        on_click=try_connect,
-    )
 
     def try_usb(e):
         progress.visible = True
-        status_text.value = "USB-подключение..."
-        status_text.color = ft.Colors.GREY_400
+        status_text.value = "USB..."
+        status_text.color = FG2
         page.update()
         threading.Thread(target=connect, args=("127.0.0.1",), daemon=True).start()
 
-    usb_btn = ft.ElevatedButton(
-        "USB (127.0.0.1)",
-        icon=ft.Icons.USB,
-        on_click=try_usb,
-    )
-
     def refresh_config(e):
-        host = ip_input.value.strip() or DEFAULT_WIFI_IP
-        progress.visible = True
-        status_text.value = "Обновление..."
-        page.update()
-        threading.Thread(target=connect, args=(host,), daemon=True).start()
+        if CONNECTED_HOST:
+            progress.visible = True
+            status_text.value = "Обновление..."
+            status_text.color = FG2
+            page.update()
+            threading.Thread(target=connect, args=(CONNECTED_HOST,), daemon=True).start()
 
-    refresh_btn = ft.IconButton(
-        icon=ft.Icons.REFRESH,
-        tooltip="Обновить конфигурацию",
-        on_click=refresh_config,
-    )
-
-    page.add(
-        ft.Container(
-            content=ft.Column([
-                ft.Row([
-                    ft.Text("ПК-Пульт", size=22, weight=ft.FontWeight.BOLD),
-                    ft.Container(expand=True),
-                    refresh_btn,
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Row([
-                    ip_input,
-                    connect_btn,
-                    usb_btn,
-                ], alignment=ft.MainAxisAlignment.CENTER, wrap=True),
-                progress,
+    header = ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Column([
+                    ft.Text("ПК-Пульт", size=22, weight=ft.FontWeight.BOLD, color=FG),
+                    ft.Text("Управление ПК", size=11, color=FG3),
+                ], spacing=2),
+                ft.Container(expand=True),
+                ft.IconButton(
+                    icon=ft.Icons.REFRESH, icon_size=18, icon_color=FG2,
+                    bgcolor=BG2, on_click=refresh_config,
+                ),
+            ]),
+            ft.Container(height=16),
+            ft.Row([
+                ip_input,
+                ft.ElevatedButton(
+                    "Подкл.", height=40,
+                    color="white", bgcolor=ACCENT,
+                    style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(10)),
+                    on_click=try_connect,
+                ),
+            ], alignment=ft.MainAxisAlignment.START, spacing=10),
+            ft.Row([
+                ft.ElevatedButton(
+                    "USB", height=34,
+                    color=FG2, bgcolor=BG2, icon=ft.Icons.USB,
+                    style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(8)),
+                    on_click=try_usb,
+                ),
+                ft.Container(expand=True),
                 status_text,
-                ft.Divider(height=4),
-            ], spacing=8),
-            padding=ft.Padding(left=12, top=12, right=12, bottom=12),
+            ], alignment=ft.MainAxisAlignment.START, spacing=10),
+        ], spacing=0),
+        padding=ft.Padding(left=20, top=50, right=20, bottom=16),
+        gradient=ft.LinearGradient(
+            begin=ft.Alignment(-1, -1), end=ft.Alignment(1, 0),
+            colors=[BG, BG2],
         ),
-        grid,
     )
 
-    threading.Thread(target=connect, args=(DEFAULT_WIFI_IP,), daemon=True).start()
+    page.add(header, progress, grid)
 
 
 if __name__ == "__main__":

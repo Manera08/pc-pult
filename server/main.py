@@ -60,9 +60,14 @@ def main():
     api_thread = run_api()
     logger.info("API-сервер запущен на порту 8789")
 
-    logger.info("Настройка ADB...")
-    from adb_helper import setup_adb
-    setup_adb()
+    logger.info("Поиск ADB...")
+    from adb_helper import find_adb, adb_forward
+    adb = find_adb()
+    if adb:
+        logger.info(f"ADB найден: {adb}")
+        adb_forward(adb)
+    else:
+        logger.info("ADB не найден. USB-подключение будет недоступно.")
 
     logger.info("Запуск GUI-редактора...")
     from gui_editor import run_gui
