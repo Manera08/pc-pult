@@ -1,5 +1,8 @@
 import os, sys, ctypes, logging
 
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
 if getattr(sys, 'frozen', False):
     _LOG_DIR = os.path.dirname(sys.executable)
 else:

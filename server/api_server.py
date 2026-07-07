@@ -72,8 +72,7 @@ def run_api(host="0.0.0.0", port=8789):
         app,
         host=host,
         port=port,
-        log_level="info",
-        access_log=False,
+        log_config=None,
     )
     server = uvicorn.Server(config)
 
