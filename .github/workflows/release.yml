@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Build EXE
+        run: |
+          cd server
+          pyinstaller --onefile --name "PK-Pult" `
+            --collect-all "keyboard" --collect-all "pyautogui" `
+            --hidden-import "fastapi" --hidden-import "uvicorn" `
+            --hidden-import "uvicorn.loggers" --hidden-import "uvicorn.loops.auto" `
+            --hidden-import "uvicorn.protocols.http.auto" `
+            --hidden-import "uvicorn.protocols.websockets.auto" `
+            --hidden-import "uvicorn.lifespan.on" `
+            --hidden-import "pydantic" --hidden-import "starlette" `
+            --hidden-import "tkinter" --hidden-import "tkinter.ttk" `
+            --hidden-import "tkinter.messagebox" `
+            main.py
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: PK-Pult-Server
+          path: server/dist/PK-Pult.exe
+
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          pip install flet==0.85.3
+          pip install -r requirements.txt
+
+      - name: Build APK
+        run: |
+          cd client
+          flet build apk --yes --verbose
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PK-Pult-APK
+          path: client/build/apk/*.apk
+
+  release:
+    needs: [build-exe, build-apk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download EXE
+        uses: actions/download-artifact@v4
+        with:
+          name: PK-Pult-Server
+          path: release/
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: PK-Pult-APK
+          path: release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "ПК-Пульт v${{ github.run_number }}"
+          body: |
+            ## ПК-Пульт v${{ github.run_number }}
+
+            - **PK-Pult.exe** — сервер для Windows (запускать от Администратора)
+            - **PK-Pult.apk** — клиент для Android
+
+            ### Установка
+            1. Скачайте `PK-Pult.exe` и запустите на ПК (ПКМ → Запуск от имени администратора)
+            2. Скачайте `PK-Pult.apk`, скиньте на телефон и откройте для установки
+            3. Убедитесь, что ПК и телефон в одной Wi-Fi сети
+            4. В приложении введите IP компьютера и нажмите "Подкл."
+          files: |
+            release/PK-Pult.exe
+            release/*.apk
