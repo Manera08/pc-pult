@@ -57,6 +57,51 @@ jobs:
           pip install flet==0.85.3
           pip install -r requirements.txt
 
+      - name: Patch Android manifest for cleartext HTTP
+        run: |
+          python3 << 'PYEOF'
+          import flet.version
+          from flet_cli.utils.template_cache import get_cached_template_zip
+          import zipfile, tempfile, shutil, os
+
+          ref = flet.version.flet_version
+          url = f"https://github.com/flet-dev/flet/releases/download/v{ref}/flet-build-template.zip"
+          cached = get_cached_template_zip(url, ref)
+          print(f"Template: {cached}")
+
+          tmp = tempfile.mkdtemp()
+          with zipfile.ZipFile(cached, "r") as z:
+              z.extractall(tmp)
+
+          patched = 0
+          for root, _dirs, files in os.walk(tmp):
+              for f in files:
+                  if "AndroidManifest" not in f:
+                      continue
+                  path = os.path.join(root, f)
+                  with open(path, "r", encoding="utf-8") as fp:
+                      content = fp.read()
+                  if "usesCleartextTraffic" in content:
+                      continue
+                  content = content.replace(
+                      "<application",
+                      '<application android:usesCleartextTraffic="true"'
+                  )
+                  with open(path, "w", encoding="utf-8") as fp:
+                      fp.write(content)
+                  patched += 1
+                  print(f"Patched: {path}")
+
+          with zipfile.ZipFile(str(cached), "w", zipfile.ZIP_DEFLATED) as z:
+              for root, _dirs, files in os.walk(tmp):
+                  for f in files:
+                      fp = os.path.join(root, f)
+                      z.write(fp, os.path.relpath(fp, tmp))
+
+          shutil.rmtree(tmp)
+          print(f"Patched {patched} manifest(s), template ready")
+          PYEOF
+
       - name: Build APK
         run: |
           cd client
