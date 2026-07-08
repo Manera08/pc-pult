@@ -116,7 +116,7 @@ def main(page: ft.Page):
                     content=ft.Text("╱", size=s // 6, color=ACCENT,
                                   opacity=0.4),
                     width=30, height=30,
-                    alignment=ft.alignment.bottom_right,
+                    alignment=ft.Alignment(1, 1),
                 ),
                 on_pan_start=start_drag,
                 on_pan_update=on_resize_update,
@@ -129,7 +129,7 @@ def main(page: ft.Page):
                               color=FG, text_align=ft.TextAlign.CENTER),
                 width=s, height=s,
                 bgcolor=BG2, border_radius=12,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment(0, 0),
                 ink=True,
                 on_click=make_handler(bid),
             )
