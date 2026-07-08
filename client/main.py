@@ -227,19 +227,20 @@ def main(page: ft.Page):
         toggle_icon.icon = ft.Icons.EXPAND_LESS if _SETTINGS_SHOWN else ft.Icons.EXPAND_MORE
         page.update()
 
+    toggle_icon = ft.IconButton(
+        ft.Icons.EXPAND_LESS, icon_size=18, icon_color=FG2,
+        on_click=toggle_settings,
+    )
+
     header = ft.Container(
         content=ft.Row([
             ft.Text("Remote Hotkeys", size=20, weight=ft.FontWeight.BOLD, color=FG),
             ft.Container(expand=True),
+            toggle_icon,
             ft.IconButton(ft.Icons.REFRESH, icon_size=18,
                          icon_color=FG2, on_click=refresh_config),
         ]),
         padding=ft.Padding(left=15, top=45, right=5, bottom=5),
-    )
-
-    toggle_icon = ft.IconButton(
-        ft.Icons.EXPAND_LESS, icon_size=20, icon_color=FG2,
-        on_click=toggle_settings,
     )
 
     settings_panel = ft.Container(
@@ -248,7 +249,6 @@ def main(page: ft.Page):
                 ip_input,
                 ft.ElevatedButton("Подкл.", height=38, color="white",
                                 bgcolor=ACCENT, on_click=try_connect),
-                toggle_icon,
             ]),
             ft.Row([
                 ft.ElevatedButton("USB", height=32, color=FG2, bgcolor=BG2,
