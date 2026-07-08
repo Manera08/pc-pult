@@ -1,53 +1,43 @@
 # Remote Hotkeys
 
-Программный комплекс удаленного управления ПК с мобильного устройства (Android).
+Управляйте компьютером с телефона Android через Wi-Fi или USB.
 
-## Структура проекта
+Сервер (Windows) эмулирует нажатия клавиш: регулировка громкости, медиа-клавиши, любые горячие сочетания. Кнопки настраиваются через встроенный GUI-редактор.
 
-```
-server/          # ПК-Сервер (Python)
-  main.py        # Точка входа (запуск API + GUI + ADB)
-  config_manager.py  # Чтение/запись config.json
-  api_server.py      # FastAPI сервер (HTTP API)
-  key_handler.py     # Эмуляция нажатий клавиш
-  gui_editor.py      # Flet GUI редактор конфигурации
-  adb_helper.py      # ADB автопоиск и port forwarding
-  config.json        # Файл конфигурации кнопок
-client/          # Мобильный клиент (Python/Flet)
-  main.py        # Flet приложение для Android
-```
+## Сборка
 
-## Установка и запуск
-
-### Сервер (ПК)
+### Сервер (EXE)
 
 ```bash
-pip install -r requirements.txt
+pip install pyinstaller -r requirements.txt
 cd server
-python main.py
+pyinstaller --onefile --windowed --name "Remote-Hotkeys" ^
+  --collect-all keyboard --collect-all pyautogui ^
+  main.py
 ```
 
-> **Важно:** Для работы глобального захвата клавиш (keyboard) запускайте от имени **Администратора**.
-
-### Клиент (Android)
+### Клиент (APK)
 
 ```bash
 cd client
-flet run main.py          # для отладки на ПК
-flet build apk main.py    # сборка .apk для Android
+pip install flet==0.85.3
+flet build apk --yes --verbose
 ```
 
-## API Endpoints
+Готовые билды можно скачать из [Releases](https://github.com/Manera08/pc-pult/releases).
+
+## Использование
+
+1. Запустите `Remote-Hotkeys.exe` на ПК (ПКМ → от имени администратора)
+2. Откройте приложение на телефоне, введите IP компьютера, нажмите «Подкл.»
+3. Для USB-подключения включите отладку по USB и нажмите «USB» в приложении
+
+## API
 
 | Метод | Путь | Описание |
 |-------|------|----------|
-| GET | `/config` | Получить список кнопок |
-| POST | `/press` | Нажать кнопку по id |
-| POST | `/buttons` | Создать новую кнопку |
+| GET | `/config` | Список кнопок |
+| POST | `/press` | Нажать кнопку |
+| POST | `/buttons` | Создать кнопку |
 | PUT | `/buttons/{id}` | Обновить кнопку |
 | DELETE | `/buttons/{id}` | Удалить кнопку |
-
-## Подключение
-
-- **Wi-Fi:** Укажите IP компьютера в приложении
-- **USB:** Подключите телефон по кабелю (режим отладки), ADB автоматически настроит порты
