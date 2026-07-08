@@ -1,4 +1,4 @@
-import json, socket
+import json, socket, threading
 import flet as ft
 
 DEFAULT_WIFI_IP = "192.168.1.100"
@@ -32,7 +32,6 @@ def _http_request(method, host, port, path, data=None):
             req += f"Content-Length: {len(body)}\r\n"
         req += "Connection: close\r\n\r\n"
         sock.sendall(req.encode() + body)
-
         resp = b""
         while True:
             chunk = sock.recv(4096)
@@ -93,6 +92,14 @@ def main(page: ft.Page):
     )
 
     size_text = ft.Text("100", size=11, color=FG2)
+
+    loop = page.session.connection.loop
+
+    def _set_status(text, color=FG2, show_progress=False):
+        status_text.value = text
+        status_text.color = color
+        progress.visible = show_progress
+        page.update()
 
     def build_tiles():
         s = int(_TILE_SIZE)
@@ -173,15 +180,7 @@ def main(page: ft.Page):
         size_text.value = str(s)
         page.update()
 
-    def _set_status(text, color=FG2, show_progress=False):
-        status_text.value = text
-        status_text.color = color
-        progress.visible = show_progress
-        page.update()
-
-    def connect(host):
-        _set_status("Подключение...", show_progress=True)
-        config = get_config(host)
+    def _on_connect_result(host, config):
         if config is None:
             _set_status("Ошибка подключения", DANGER)
             return
@@ -191,6 +190,10 @@ def main(page: ft.Page):
         build_tiles()
         _set_status("Подключено", SUCCESS)
 
+    def _do_connect(host):
+        config = get_config(host)
+        loop.call_soon_threadsafe(lambda: _on_connect_result(host, config))
+
     def _on_press(host, bid):
         result = send_press(host, bid)
         if result is None:
@@ -199,14 +202,18 @@ def main(page: ft.Page):
             _set_status("Подключено", SUCCESS)
 
     def try_connect(e):
-        page.run_thread(connect, ip_input.value.strip() or DEFAULT_WIFI_IP)
+        host = ip_input.value.strip() or DEFAULT_WIFI_IP
+        _set_status("Подключение...", show_progress=True)
+        threading.Thread(target=_do_connect, args=(host,), daemon=True).start()
 
     def try_usb(e):
-        page.run_thread(connect, "127.0.0.1")
+        _set_status("USB...", show_progress=True)
+        threading.Thread(target=_do_connect, args=("127.0.0.1",), daemon=True).start()
 
     def refresh_config(e):
         if CONNECTED_HOST:
-            page.run_thread(connect, CONNECTED_HOST)
+            _set_status("Обновление...", show_progress=True)
+            threading.Thread(target=_do_connect, args=(CONNECTED_HOST,), daemon=True).start()
 
     def toggle_settings(e):
         global _SETTINGS_SHOWN
