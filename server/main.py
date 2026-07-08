@@ -14,7 +14,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler(os.path.join(_LOG_DIR, "pk-pult.log"), encoding="utf-8"),
+        logging.FileHandler(os.path.join(_LOG_DIR, "remote-hotkeys.log"), encoding="utf-8"),
         logging.StreamHandler(),
     ],
 )
@@ -55,7 +55,7 @@ def try_elevate():
 
 
 def main():
-    logger.info("ПК-Пульт Сервер v1.0.0")
+    logger.info("Remote Hotkeys Server v1.0.0")
     logger.info("=" * 40)
 
     check_admin()

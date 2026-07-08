@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from config_manager import get_buttons, add_button, update_button, delete_button
 from key_handler import press_keys
 
-app = FastAPI(title="ПК-Пульт API", version="1.0.0")
+app = FastAPI(title="Remote Hotkeys API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

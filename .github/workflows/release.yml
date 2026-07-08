@@ -24,7 +24,7 @@ jobs:
       - name: Build EXE
         run: |
           cd server
-          pyinstaller --onefile --windowed --name "PK-Pult" `
+          pyinstaller --onefile --windowed --name "Remote-Hotkeys" `
             --collect-all "keyboard" --collect-all "pyautogui" `
             --hidden-import "fastapi" --hidden-import "uvicorn" `
             --hidden-import "uvicorn.loggers" --hidden-import "uvicorn.loops.auto" `
@@ -39,8 +39,8 @@ jobs:
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: PK-Pult-Server
-          path: server/dist/PK-Pult.exe
+          name: Remote-Hotkeys-Server
+          path: server/dist/Remote-Hotkeys.exe
 
   build-apk:
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: PK-Pult-APK
+          name: Remote-Hotkeys-APK
           path: client/build/apk/*.apk
 
   release:
@@ -80,31 +80,31 @@ jobs:
       - name: Download EXE
         uses: actions/download-artifact@v4
         with:
-          name: PK-Pult-Server
+          name: Remote-Hotkeys-Server
           path: release/
 
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
-          name: PK-Pult-APK
+          name: Remote-Hotkeys-APK
           path: release/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "ПК-Пульт v${{ github.run_number }}"
+          name: "Remote Hotkeys v${{ github.run_number }}"
           body: |
-            ## ПК-Пульт v${{ github.run_number }}
+            ## Remote Hotkeys v${{ github.run_number }}
 
-            - **PK-Pult.exe** — сервер для Windows (запускать от Администратора)
-            - **PK-Pult.apk** — клиент для Android
+            - **Remote-Hotkeys.exe** — сервер для Windows (запускать от Администратора)
+            - **Remote-Hotkeys.apk** — клиент для Android
 
             ### Установка
-            1. Скачайте `PK-Pult.exe` и запустите на ПК (ПКМ → Запуск от имени администратора)
-            2. Скачайте `PK-Pult.apk`, скиньте на телефон и откройте для установки
+            1. Скачайте `Remote-Hotkeys.exe` и запустите на ПК (ПКМ → Запуск от имени администратора)
+            2. Скачайте `Remote-Hotkeys.apk`, скиньте на телефон и откройте для установки
             3. Убедитесь, что ПК и телефон в одной Wi-Fi сети
             4. В приложении введите IP компьютера и нажмите "Подкл."
           files: |
-            release/PK-Pult.exe
+            release/Remote-Hotkeys.exe
             release/*.apk

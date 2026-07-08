@@ -1,4 +1,4 @@
-# ПК-Пульт зависимости
+# Remote Hotkeys зависимости
 fastapi>=0.110.0
 uvicorn>=0.29.0
 flet>=0.23.0

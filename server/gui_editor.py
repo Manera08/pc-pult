@@ -25,7 +25,7 @@ DANGER = "#e94560"
 
 def run_gui(api_port=8789):
     root = tk.Tk()
-    root.title("ПК-Пульт — Редактор")
+    root.title("Remote Hotkeys — Редактор")
     root.geometry("800x600")
     root.minsize(650, 450)
     root.configure(bg=BG)
@@ -51,7 +51,7 @@ class EditorApp:
         header.pack_propagate(False)
 
         tk.Label(
-            header, text="ПК-Пульт", font=("Segoe UI", 16, "bold"),
+            header, text="Remote Hotkeys", font=("Segoe UI", 16, "bold"),
             bg=BG2, fg=FG
         ).pack(side=tk.LEFT, padx=20, pady=15)
 
@@ -127,7 +127,7 @@ class EditorApp:
             local_ip = socket.gethostbyname(hostname)
         except Exception:
             local_ip = "?"
-        info = f"ПК-Пульт v1.0.0  |  Порт: 8789  |  IP: {local_ip}"
+        info = f"Remote Hotkeys v1.0.0  |  Порт: 8789  |  IP: {local_ip}"
 
         server_status = tk.Label(
             footer, text="", font=("Segoe UI", 8), bg=BG2, fg=FG_DIM

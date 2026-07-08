@@ -63,7 +63,7 @@ def calc_cols(size):
 
 def main(page: ft.Page):
     global CONNECTED_HOST, _SETTINGS_SHOWN, _TILE_SIZE, _LAST_BUTTONS, _DRAGGING
-    page.title = "pk-pult"
+    page.title = "Remote Hotkeys"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
     page.padding = 0
@@ -229,7 +229,7 @@ def main(page: ft.Page):
 
     header = ft.Container(
         content=ft.Row([
-            ft.Text("pk-pult", size=20, weight=ft.FontWeight.BOLD, color=FG),
+            ft.Text("Remote Hotkeys", size=20, weight=ft.FontWeight.BOLD, color=FG),
             ft.Container(expand=True),
             ft.IconButton(ft.Icons.REFRESH, icon_size=18,
                          icon_color=FG2, on_click=refresh_config),
