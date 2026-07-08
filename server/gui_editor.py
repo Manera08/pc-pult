@@ -1,7 +1,9 @@
-import threading, socket, tkinter as tk
+import threading, socket, logging, tkinter as tk
 from tkinter import ttk, messagebox
 from config_manager import get_buttons, add_button, update_button, delete_button
 from key_handler import press_keys
+
+logger = logging.getLogger("gui")
 
 _CAPTURE_ACTIVE = False
 _captured_keys = []
@@ -31,13 +33,14 @@ def run_gui(api_port=8789):
         root.state("zoomed")
     except Exception:
         pass
-    EditorApp(root)
+    EditorApp(root, api_port)
     root.mainloop()
 
 
 class EditorApp:
-    def __init__(self, root):
+    def __init__(self, root, api_port=8789):
         self.root = root
+        self.api_port = api_port
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self._build_ui()
         self.refresh_list()
@@ -139,9 +142,10 @@ class EditorApp:
         def check_server():
             try:
                 import urllib.request
-                urllib.request.urlopen(f"http://127.0.0.1:{api_port}/config", timeout=1)
+                urllib.request.urlopen(f"http://127.0.0.1:{self.api_port}/config", timeout=1)
                 server_status.config(text="Сервер: ОК", fg=SUCCESS)
-            except Exception:
+            except Exception as e:
+                logger.error("Health check failed: %s", e)
                 server_status.config(text="Сервер: ОШИБКА", fg=DANGER)
             self.root.after(5000, check_server)
 

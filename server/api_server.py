@@ -66,7 +66,7 @@ def remove_button(btn_id: str):
 
 
 def run_api(host="0.0.0.0", port=8789):
-    import time, urllib.request, logging
+    import time, urllib.request, logging, asyncio
 
     logger = logging.getLogger("api")
 
@@ -80,9 +80,11 @@ def run_api(host="0.0.0.0", port=8789):
 
     def _start():
         try:
-            server.run()
+            loop = asyncio.SelectorEventLoop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(server.serve())
         except Exception as e:
-            logger.error(f"Server failed to start: {e}")
+            logger.exception(f"Server thread error")
 
     t = threading.Thread(target=_start, daemon=True)
     t.start()
