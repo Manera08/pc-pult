@@ -1,4 +1,4 @@
-import threading, tkinter as tk
+import threading, socket, tkinter as tk
 from tkinter import ttk, messagebox
 from config_manager import get_buttons, add_button, update_button, delete_button
 from key_handler import press_keys
@@ -119,10 +119,33 @@ class EditorApp:
         footer.pack(fill=tk.X, side=tk.BOTTOM)
         footer.pack_propagate(False)
 
+        try:
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+        except Exception:
+            local_ip = "?"
+        info = f"ПК-Пульт v1.0.0  |  Порт: 8789  |  IP: {local_ip}"
+
+        server_status = tk.Label(
+            footer, text="", font=("Segoe UI", 8), bg=BG2, fg=FG_DIM
+        )
+        server_status.pack(side=tk.RIGHT, padx=15, pady=8)
+
         tk.Label(
-            footer, text="ПК-Пульт v1.0.0  |  Порт: 8789  |  IP: 192.168.88.130",
+            footer, text=info,
             font=("Segoe UI", 8), bg=BG2, fg=FG_DIM
         ).pack(side=tk.LEFT, padx=15, pady=8)
+
+        def check_server():
+            try:
+                import urllib.request
+                urllib.request.urlopen(f"http://127.0.0.1:{api_port}/config", timeout=1)
+                server_status.config(text="Сервер: ОК", fg=SUCCESS)
+            except Exception:
+                server_status.config(text="Сервер: ОШИБКА", fg=DANGER)
+            self.root.after(5000, check_server)
+
+        self.root.after(1000, check_server)
 
     def refresh_list(self):
         for widget in self.inner_frame.winfo_children():

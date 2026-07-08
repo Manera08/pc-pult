@@ -66,7 +66,9 @@ def remove_button(btn_id: str):
 
 
 def run_api(host="0.0.0.0", port=8789):
-    import time, urllib.request
+    import time, urllib.request, logging
+
+    logger = logging.getLogger("api")
 
     config = uvicorn.Config(
         app,
@@ -76,7 +78,13 @@ def run_api(host="0.0.0.0", port=8789):
     )
     server = uvicorn.Server(config)
 
-    t = threading.Thread(target=server.run, daemon=True)
+    def _start():
+        try:
+            server.run()
+        except Exception as e:
+            logger.error(f"Server failed to start: {e}")
+
+    t = threading.Thread(target=_start, daemon=True)
     t.start()
 
     for _ in range(30):
@@ -87,4 +95,7 @@ def run_api(host="0.0.0.0", port=8789):
             break
         except Exception:
             time.sleep(0.3)
+
+    if not server.started:
+        logger.warning("Server may not have started properly")
     return t
