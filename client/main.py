@@ -1,4 +1,4 @@
-import json, socket
+import json, socket, http.client
 import flet as ft
 
 DEFAULT_WIFI_IP = "192.168.1.100"
@@ -21,31 +21,17 @@ _DANGER = "#ff1744"
 
 
 def _http_raw(method, host, port, path, data=None):
-    sock = None
+    conn = None
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(TIMEOUT)
-        sock.connect((host, port))
-        body = json.dumps(data).encode() if data else b""
-        req = f"{method} /{path} HTTP/1.1\r\nHost: {host}:{port}\r\n"
-        if body:
-            req += f"Content-Length: {len(body)}\r\n"
-        req += "Connection: close\r\n\r\n"
-        sock.sendall(req.encode() + body)
-        resp = b""
-        while True:
-            chunk = sock.recv(4096)
-            if not chunk:
-                break
-            resp += chunk
-        header_end = resp.find(b"\r\n\r\n")
-        if header_end == -1:
-            return (False, "Нет заголовка ответа")
-        body_start = header_end + 4
-        status_line = resp[: resp.find(b"\r\n")].decode(errors="replace")
-        if "200" not in status_line:
-            return (False, f"Код: {status_line.split()[1]}")
-        return (True, json.loads(resp[body_start:].decode()))
+        conn = http.client.HTTPConnection(host, port, timeout=TIMEOUT)
+        body = json.dumps(data).encode() if data else None
+        conn.request(method, f"/{path}", body=body,
+                     headers={"Content-Type": "application/json",
+                              "Connection": "close"})
+        resp = conn.getresponse()
+        if resp.status != 200:
+            return (False, f"Код: {resp.status}")
+        return (True, json.loads(resp.read()))
     except socket.timeout:
         return (False, "Таймаут 5с")
     except ConnectionRefusedError:
@@ -55,8 +41,8 @@ def _http_raw(method, host, port, path, data=None):
     except Exception as e:
         return (False, f"{type(e).__name__}")
     finally:
-        if sock:
-            sock.close()
+        if conn:
+            conn.close()
 
 
 def get_config(host):
