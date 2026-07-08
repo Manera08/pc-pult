@@ -176,8 +176,7 @@ def main(page: ft.Page):
             status_text.color = _SUCCESS
         page.update()
 
-    def try_connect(e):
-        host = ip_input.value.strip() or DEFAULT_WIFI_IP
+    def do_connect(host):
         progress.visible = True
         status_text.value = "Подключение..."
         status_text.color = FG2
@@ -199,27 +198,23 @@ def main(page: ft.Page):
         progress.visible = False
         page.update()
 
-    def try_usb(e):
-        progress.visible = True
-        status_text.value = "USB..."
-        status_text.color = FG2
-        page.update()
-
-        ok, val = _http_raw("GET", "127.0.0.1", SERVER_PORT, "config")
-
-        if ok:
-            global CONNECTED_HOST, _LAST_BUTTONS
-            CONNECTED_HOST = "127.0.0.1"
-            _LAST_BUTTONS = val.get("buttons", [])
-            build_tiles()
-            status_text.value = "Подключено"
-            status_text.color = _SUCCESS
-        else:
-            status_text.value = f"Ошибка: {val}"
+    def try_connect(e):
+        try:
+            do_connect(ip_input.value.strip() or DEFAULT_WIFI_IP)
+        except Exception as ex:
+            progress.visible = False
+            status_text.value = f"Исключение: {type(ex).__name__}: {ex}"
             status_text.color = _DANGER
+            page.update()
 
-        progress.visible = False
-        page.update()
+    def try_usb(e):
+        try:
+            do_connect("127.0.0.1")
+        except Exception as ex:
+            progress.visible = False
+            status_text.value = f"Исключение: {type(ex).__name__}: {ex}"
+            status_text.color = _DANGER
+            page.update()
 
     def refresh_config(e):
         if CONNECTED_HOST:
