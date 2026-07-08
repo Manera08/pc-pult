@@ -1,4 +1,4 @@
-import json, socket, threading
+import json, socket
 import flet as ft
 
 DEFAULT_WIFI_IP = "192.168.1.100"
@@ -8,8 +8,6 @@ TIMEOUT = 5
 BG = "#0f0f23"
 BG2 = "#1a1a3e"
 ACCENT = "#6c63ff"
-SUCCESS = "#00c853"
-DANGER = "#ff1744"
 FG = "#ffffff"
 FG2 = "#b0b0cc"
 
@@ -18,9 +16,11 @@ _LAST_BUTTONS = []
 _SETTINGS_SHOWN = True
 _TILE_SIZE = 100.0
 _DRAGGING = False
+_SUCCESS = "#00c853"
+_DANGER = "#ff1744"
 
 
-def _http_request(method, host, port, path, data=None):
+def _http_raw(method, host, port, path, data=None):
     sock = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,25 +40,33 @@ def _http_request(method, host, port, path, data=None):
             resp += chunk
         header_end = resp.find(b"\r\n\r\n")
         if header_end == -1:
-            return None
+            return (False, "Нет заголовка ответа")
         body_start = header_end + 4
-        status_line = resp[: resp.find(b"\r\n")].decode()
+        status_line = resp[: resp.find(b"\r\n")].decode(errors="replace")
         if "200" not in status_line:
-            return None
-        return json.loads(resp[body_start:].decode())
-    except Exception:
-        return None
+            return (False, f"Код: {status_line.split()[1]}")
+        return (True, json.loads(resp[body_start:].decode()))
+    except socket.timeout:
+        return (False, "Таймаут 5с")
+    except ConnectionRefusedError:
+        return (False, "Сервер не отвечает")
+    except socket.gaierror:
+        return (False, "Неверный IP")
+    except Exception as e:
+        return (False, f"{type(e).__name__}")
     finally:
         if sock:
             sock.close()
 
 
 def get_config(host):
-    return _http_request("GET", host, SERVER_PORT, "config")
+    ok, val = _http_raw("GET", host, SERVER_PORT, "config")
+    return val if ok else None
 
 
 def send_press(host, btn_id):
-    return _http_request("POST", host, SERVER_PORT, "press", {"id": btn_id})
+    ok, val = _http_raw("POST", host, SERVER_PORT, "press", {"id": btn_id})
+    return val if ok else None
 
 
 def calc_cols(size):
@@ -92,14 +100,6 @@ def main(page: ft.Page):
     )
 
     size_text = ft.Text("100", size=11, color=FG2)
-
-    loop = page.session.connection.loop
-
-    def _set_status(text, color=FG2, show_progress=False):
-        status_text.value = text
-        status_text.color = color
-        progress.visible = show_progress
-        page.update()
 
     def build_tiles():
         s = int(_TILE_SIZE)
@@ -180,40 +180,64 @@ def main(page: ft.Page):
         size_text.value = str(s)
         page.update()
 
-    def _on_connect_result(host, config):
-        if config is None:
-            _set_status("Ошибка подключения", DANGER)
-            return
-        global CONNECTED_HOST, _LAST_BUTTONS
-        CONNECTED_HOST = host
-        _LAST_BUTTONS = config.get("buttons", [])
-        build_tiles()
-        _set_status("Подключено", SUCCESS)
-
-    def _do_connect(host):
-        config = get_config(host)
-        loop.call_soon_threadsafe(lambda: _on_connect_result(host, config))
-
     def _on_press(host, bid):
-        result = send_press(host, bid)
-        if result is None:
-            _set_status("Ошибка отправки", DANGER)
+        ok, val = _http_raw("POST", host, SERVER_PORT, "press", {"id": bid})
+        if not ok:
+            status_text.value = f"Ошибка: {val}"
+            status_text.color = _DANGER
         else:
-            _set_status("Подключено", SUCCESS)
+            status_text.value = "Подключено"
+            status_text.color = _SUCCESS
+        page.update()
 
     def try_connect(e):
         host = ip_input.value.strip() or DEFAULT_WIFI_IP
-        _set_status("Подключение...", show_progress=True)
-        threading.Thread(target=_do_connect, args=(host,), daemon=True).start()
+        progress.visible = True
+        status_text.value = "Подключение..."
+        status_text.color = FG2
+        page.update()
+
+        ok, val = _http_raw("GET", host, SERVER_PORT, "config")
+
+        if ok:
+            global CONNECTED_HOST, _LAST_BUTTONS
+            CONNECTED_HOST = host
+            _LAST_BUTTONS = val.get("buttons", [])
+            build_tiles()
+            status_text.value = "Подключено"
+            status_text.color = _SUCCESS
+        else:
+            status_text.value = f"Ошибка: {val}"
+            status_text.color = _DANGER
+
+        progress.visible = False
+        page.update()
 
     def try_usb(e):
-        _set_status("USB...", show_progress=True)
-        threading.Thread(target=_do_connect, args=("127.0.0.1",), daemon=True).start()
+        progress.visible = True
+        status_text.value = "USB..."
+        status_text.color = FG2
+        page.update()
+
+        ok, val = _http_raw("GET", "127.0.0.1", SERVER_PORT, "config")
+
+        if ok:
+            global CONNECTED_HOST, _LAST_BUTTONS
+            CONNECTED_HOST = "127.0.0.1"
+            _LAST_BUTTONS = val.get("buttons", [])
+            build_tiles()
+            status_text.value = "Подключено"
+            status_text.color = _SUCCESS
+        else:
+            status_text.value = f"Ошибка: {val}"
+            status_text.color = _DANGER
+
+        progress.visible = False
+        page.update()
 
     def refresh_config(e):
         if CONNECTED_HOST:
-            _set_status("Обновление...", show_progress=True)
-            threading.Thread(target=_do_connect, args=(CONNECTED_HOST,), daemon=True).start()
+            try_connect(e)
 
     def toggle_settings(e):
         global _SETTINGS_SHOWN
