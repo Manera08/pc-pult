@@ -97,10 +97,11 @@ def main(page: ft.Page):
                 content=ft.Text(label, size=max(8, s // 9),
                               weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
+                width=s, height=s,
                 bgcolor=BG2, border_radius=12,
                 alignment=ft.Alignment(0, 0),
-                ink=True, aspect_ratio=1.0,
-                on_click=lambda e, b=bid: _on_press(CONNECTED_HOST, b),
+                ink=not _EDIT_MODE,
+                on_click=None if _EDIT_MODE else lambda e, b=bid: _on_press(CONNECTED_HOST, b),
             )
 
             if _EDIT_MODE:
@@ -112,14 +113,10 @@ def main(page: ft.Page):
                 if is_sel:
                     body = ft.Container(
                         content=ft.Container(
-                            content=ft.Container(
-                                content=tile.content,
-                                bgcolor="#2a2a5e", border_radius=12,
-                                border=ft.border.all(2, ACCENT),
-                                alignment=ft.Alignment(0, 0),
-                                width=s, height=s,
-                            ),
+                            content=tile,
                             width=s, height=s,
+                            bgcolor="#2a2a5e", border_radius=12,
+                            border=ft.border.all(2, ACCENT),
                         ),
                         width=s, height=s,
                     )
@@ -154,9 +151,6 @@ def main(page: ft.Page):
                     tile.on_click = lambda e, i=idx: _select(i)
                     tile.left = x
                     tile.top = y
-                    tile.width = s
-                    tile.height = s
-                    tile.aspect_ratio = None
                     edit_canvas.controls.append(tile)
             else:
                 grid.controls.append(tile)
@@ -298,7 +292,8 @@ def main(page: ft.Page):
     )
 
     edit_canvas.visible = False
-    page.add(header, settings_panel, progress, grid, edit_canvas)
+    content_stack = ft.Stack([grid, edit_canvas], expand=True)
+    page.add(header, settings_panel, progress, content_stack)
 
 
 if __name__ == "__main__":
