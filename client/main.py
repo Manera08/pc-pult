@@ -123,41 +123,44 @@ def main(page: ft.Page):
                 width=s, height=s,
                 bgcolor=BG2, border_radius=12,
                 alignment=ft.Alignment(0, 0),
-                ink=True,
-                on_click=lambda e, b=bid: _on_press(CONNECTED_HOST, b),
+                ink=not _EDIT_MODE,
+                on_click=None if _EDIT_MODE else lambda e, b=bid: _on_press(CONNECTED_HOST, b),
             )
 
             if _EDIT_MODE:
-                up_btn = ft.Container(
-                    content=ft.Text("▲", size=s // 6, color=FG2,
-                                  text_align=ft.TextAlign.CENTER),
-                    width=s, height=s // 3,
-                    bgcolor="#2a2a4e", border_radius=8,
-                    on_click=lambda e, i=idx: _move(i, -1),
+                drag = ft.Draggable(
+                    content=tile,
+                    content_when_dragging=ft.Container(
+                        content=ft.Text(label, size=max(8, s // 9),
+                                      weight=ft.FontWeight.W_600,
+                                      color=FG, text_align=ft.TextAlign.CENTER),
+                        width=s, height=s,
+                        bgcolor="#3a3a6e", border_radius=12,
+                        alignment=ft.Alignment(0, 0),
+                    ),
+                    data=str(idx),
+                    group="buttons",
                 )
-                down_btn = ft.Container(
-                    content=ft.Text("▼", size=s // 6, color=FG2,
-                                  text_align=ft.TextAlign.CENTER),
-                    width=s, height=s // 3,
-                    bgcolor="#2a2a4e", border_radius=8,
-                    on_click=lambda e, i=idx: _move(i, 1),
+                grid.controls.append(
+                    ft.DragTarget(
+                        content=drag,
+                        group="buttons",
+                        on_accept=lambda e, i=idx: _on_drop(e, i),
+                    )
                 )
-                col = ft.Column(
-                    [up_btn, tile, down_btn],
-                    spacing=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                )
-                grid.controls.append(col)
             else:
                 grid.controls.append(tile)
 
         page.update()
 
-    def _move(idx, direction):
-        global _LAST_BUTTONS
-        new_idx = idx + direction
-        if new_idx < 0 or new_idx >= len(_LAST_BUTTONS):
+    def _on_drop(e, target_idx):
+        source_idx = int(e.data)
+        if source_idx == target_idx:
             return
-        _LAST_BUTTONS[idx], _LAST_BUTTONS[new_idx] = _LAST_BUTTONS[new_idx], _LAST_BUTTONS[idx]
+        global _LAST_BUTTONS
+        item = _LAST_BUTTONS.pop(source_idx)
+        new_idx = target_idx if source_idx > target_idx else target_idx - 1
+        _LAST_BUTTONS.insert(new_idx, item)
         _rebuild_grid()
         if CONNECTED_HOST:
             _http_raw("PUT", CONNECTED_HOST, SERVER_PORT,
