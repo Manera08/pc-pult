@@ -14,7 +14,6 @@ FG2 = "#b0b0cc"
 CONNECTED_HOST = None
 _LAST_BUTTONS = []
 _SETTINGS_SHOWN = True
-_TILE_SIZE = 100.0
 _EDIT_MODE = False
 _SUCCESS = "#00c853"
 _DANGER = "#ff1744"
@@ -45,24 +44,8 @@ def _http_raw(method, host, port, path, data=None):
             conn.close()
 
 
-def get_config(host):
-    ok, val = _http_raw("GET", host, SERVER_PORT, "config")
-    return val if ok else None
-
-
-def send_press(host, btn_id):
-    ok, val = _http_raw("POST", host, SERVER_PORT, "press", {"id": btn_id})
-    return val if ok else None
-
-
-def calc_cols(size):
-    if size >= 150: return 2
-    if size >= 100: return 3
-    return 4
-
-
 def main(page: ft.Page):
-    global CONNECTED_HOST, _SETTINGS_SHOWN, _TILE_SIZE, _LAST_BUTTONS, _EDIT_MODE
+    global CONNECTED_HOST, _SETTINGS_SHOWN, _LAST_BUTTONS, _EDIT_MODE
     page.title = "Remote Hotkeys"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
@@ -77,56 +60,29 @@ def main(page: ft.Page):
     )
 
     status_text = ft.Text("", size=11, color=FG2)
-
-    size_slider = ft.Slider(
-        min=60, max=180, value=_TILE_SIZE, divisions=12,
-        width=150, height=30,
-        active_color=ACCENT, inactive_color=BG2,
-        thumb_color=ACCENT,
-        on_change=lambda e: _set_size(e.control.value),
-    )
-
     progress = ft.ProgressBar(visible=False, color=ACCENT, height=2)
 
-    grid = ft.GridView(
-        expand=True, runs_count=3,
-        max_extent=110, child_aspect_ratio=1.0,
-        spacing=8, run_spacing=8, padding=10,
-    )
+    grid = ft.Wrap(expand=True, spacing=8, run_spacing=8)
 
     edit_canvas = ft.Stack(expand=True)
 
-    size_label = ft.Text(str(int(_TILE_SIZE)), size=11, color=FG2)
-
-    def _set_size(val):
-        global _TILE_SIZE
-        _TILE_SIZE = val
-        size_label.value = str(int(val))
-        _rebuild_grid()
-
-    def _calc_grid_pos(idx, total=None):
-        s = int(_TILE_SIZE)
-        gap = max(4, s // 12)
-        cols = calc_cols(s)
+    def _calc_grid_pos(idx):
+        s = 100
+        cols = 3
+        gap = 8
         cell = s + gap
         return (idx % cols) * cell + 10, (idx // cols) * cell + 10
 
     def _rebuild_grid():
-        s = int(_TILE_SIZE)
-        cols = calc_cols(s)
-        gap = max(4, s // 12)
-        grid.runs_count = cols
-        grid.max_extent = s
-        grid.spacing = gap
-        grid.run_spacing = gap
         grid.controls.clear()
         edit_canvas.controls.clear()
 
         for idx, btn in enumerate(_LAST_BUTTONS):
             bid = btn["id"]
             label = btn.get("label", "?")
+            s = int(btn.get("size", 100))
 
-            tile = ft.Container(
+            container = ft.Container(
                 content=ft.Text(label, size=max(8, s // 9),
                               weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
@@ -143,42 +99,41 @@ def main(page: ft.Page):
                 if x is None:
                     x, y = _calc_grid_pos(idx)
 
-                tile_body = ft.Container(
-                    content=tile,
+                body = ft.Container(
+                    content=container,
                     width=s, height=s,
                     bgcolor="#2a2a5e", border_radius=12,
                     border=ft.border.all(2, ACCENT),
                 )
 
-                move_detector = ft.GestureDetector(
-                    content=tile_body,
+                move = ft.GestureDetector(
+                    content=body,
                     on_pan_update=lambda e, b=btn: _move_update(e, b),
-                    on_pan_end=lambda e: _save_positions(),
+                    on_pan_end=lambda e: _save_all(),
                 )
 
+                hs = max(24, min(40, s // 3))
                 handle = ft.Container(
-                    content=ft.Text("╱", size=s // 5, color=ACCENT,
+                    content=ft.Text("╱", size=hs // 2, color=ACCENT,
                                   text_align=ft.TextAlign.CENTER),
-                    width=40, height=40,
-                    bgcolor="#1a1a3e", border_radius=8,
+                    width=hs, height=hs,
+                    bgcolor="#1a1a3e", border_radius=6,
                     border=ft.border.all(1, ACCENT),
                     alignment=ft.Alignment(1, 1),
                     right=0, bottom=0,
                 )
 
-                resize_detector = ft.GestureDetector(
+                resize = ft.GestureDetector(
                     content=handle,
-                    on_pan_update=lambda e: _resize_update(e),
-                    on_pan_end=lambda e: _save_positions(),
+                    on_pan_update=lambda e, b=btn: _resize_update(e, b),
+                    on_pan_end=lambda e: _save_all(),
                 )
 
-                btn_stack = ft.Stack(
-                    [move_detector, resize_detector],
-                    width=s, height=s, left=x, top=y,
+                edit_canvas.controls.append(
+                    ft.Stack([move, resize], width=s, height=s, left=x, top=y)
                 )
-                edit_canvas.controls.append(btn_stack)
             else:
-                grid.controls.append(tile)
+                grid.controls.append(container)
 
         page.update()
 
@@ -187,14 +142,12 @@ def main(page: ft.Page):
         btn["y"] = btn.get("y", 0) + e.delta_y
         _rebuild_grid()
 
-    def _resize_update(e):
-        global _TILE_SIZE
-        _TILE_SIZE = max(60, min(180, _TILE_SIZE + (e.delta_x + e.delta_y) / 4))
-        size_slider.value = _TILE_SIZE
-        size_label.value = str(int(_TILE_SIZE))
+    def _resize_update(e, btn):
+        old = int(btn.get("size", 100))
+        btn["size"] = max(60, min(200, old + (e.delta_x + e.delta_y) / 2))
         _rebuild_grid()
 
-    def _save_positions():
+    def _save_all():
         if CONNECTED_HOST:
             _http_raw("PUT", CONNECTED_HOST, SERVER_PORT,
                      "config", {"buttons": _LAST_BUTTONS})
@@ -304,11 +257,6 @@ def main(page: ft.Page):
                                 icon=ft.Icons.USB, on_click=try_usb),
                 ft.Container(expand=True),
                 status_text,
-            ]),
-            ft.Row([
-                ft.Text("Размер:", size=11, color=FG2),
-                size_slider,
-                size_label,
             ]),
         ], spacing=6, tight=True),
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
