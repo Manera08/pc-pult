@@ -15,7 +15,7 @@ CONNECTED_HOST = None
 _LAST_BUTTONS = []
 _SETTINGS_SHOWN = True
 _TILE_SIZE = 100.0
-_DRAGGING = False
+_EDIT_MODE = False
 _SUCCESS = "#00c853"
 _DANGER = "#ff1744"
 
@@ -62,7 +62,7 @@ def calc_cols(size):
 
 
 def main(page: ft.Page):
-    global CONNECTED_HOST, _SETTINGS_SHOWN, _TILE_SIZE, _LAST_BUTTONS, _DRAGGING
+    global CONNECTED_HOST, _SETTINGS_SHOWN, _TILE_SIZE, _LAST_BUTTONS, _EDIT_MODE
     page.title = "Remote Hotkeys"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
@@ -77,6 +77,15 @@ def main(page: ft.Page):
     )
 
     status_text = ft.Text("", size=11, color=FG2)
+
+    size_slider = ft.Slider(
+        min=60, max=180, value=_TILE_SIZE, divisions=12,
+        width=150, height=30,
+        active_color=ACCENT, inactive_color=BG2,
+        thumb_color=ACCENT,
+        on_change=lambda e: _set_size(e.control.value),
+    )
+
     progress = ft.ProgressBar(visible=False, color=ACCENT, height=2)
 
     grid = ft.GridView(
@@ -85,9 +94,15 @@ def main(page: ft.Page):
         spacing=8, run_spacing=8, padding=10,
     )
 
-    size_text = ft.Text("100", size=11, color=FG2)
+    size_label = ft.Text(str(int(_TILE_SIZE)), size=11, color=FG2)
 
-    def build_tiles():
+    def _set_size(val):
+        global _TILE_SIZE
+        _TILE_SIZE = val
+        size_label.value = str(int(val))
+        _rebuild_grid()
+
+    def _rebuild_grid():
         s = int(_TILE_SIZE)
         cols = calc_cols(s)
         gap = max(4, s // 12)
@@ -97,33 +112,11 @@ def main(page: ft.Page):
         grid.run_spacing = gap
         grid.controls.clear()
 
-        for btn in _LAST_BUTTONS:
+        for idx, btn in enumerate(_LAST_BUTTONS):
             bid = btn["id"]
             label = btn.get("label", "?")
 
-            def make_handler(bid_arg, host=CONNECTED_HOST):
-                return lambda e: _on_press(host, bid_arg)
-
-            def start_drag(e):
-                global _DRAGGING
-                _DRAGGING = True
-            def end_drag(e):
-                global _DRAGGING
-                _DRAGGING = False
-
-            handle = ft.GestureDetector(
-                content=ft.Container(
-                    content=ft.Text("╱", size=s // 6, color=ACCENT,
-                                  opacity=0.4),
-                    width=30, height=30,
-                    alignment=ft.Alignment(1, 1),
-                ),
-                on_pan_start=start_drag,
-                on_pan_update=on_resize_update,
-                on_pan_end=end_drag,
-            )
-
-            tile_bg = ft.Container(
+            tile = ft.Container(
                 content=ft.Text(label, size=max(8, s // 9),
                               weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
@@ -131,42 +124,48 @@ def main(page: ft.Page):
                 bgcolor=BG2, border_radius=12,
                 alignment=ft.Alignment(0, 0),
                 ink=True,
-                on_click=make_handler(bid),
+                on_click=lambda e, b=bid: _on_press(CONNECTED_HOST, b),
             )
 
-            stack = ft.Stack([tile_bg, handle], width=s, height=s)
-            grid.controls.append(stack)
+            if _EDIT_MODE:
+                up_btn = ft.Container(
+                    content=ft.Text("▲", size=s // 6, color=FG2,
+                                  text_align=ft.TextAlign.CENTER),
+                    width=s, height=s // 3,
+                    bgcolor="#2a2a4e", border_radius=8,
+                    on_click=lambda e, i=idx: _move(i, -1),
+                )
+                down_btn = ft.Container(
+                    content=ft.Text("▼", size=s // 6, color=FG2,
+                                  text_align=ft.TextAlign.CENTER),
+                    width=s, height=s // 3,
+                    bgcolor="#2a2a4e", border_radius=8,
+                    on_click=lambda e, i=idx: _move(i, 1),
+                )
+                col = ft.Column(
+                    [up_btn, tile, down_btn],
+                    spacing=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+                grid.controls.append(col)
+            else:
+                grid.controls.append(tile)
 
-        size_text.value = str(s)
         page.update()
 
-    def on_resize_update(e):
-        global _TILE_SIZE, _DRAGGING
-        if not _DRAGGING:
+    def _move(idx, direction):
+        global _LAST_BUTTONS
+        new_idx = idx + direction
+        if new_idx < 0 or new_idx >= len(_LAST_BUTTONS):
             return
-        _TILE_SIZE = max(50, min(200, _TILE_SIZE + (e.delta_x + e.delta_y) / 4))
-        s = int(_TILE_SIZE)
-        cols = calc_cols(s)
-        gap = max(4, s // 12)
-        grid.runs_count = cols
-        grid.max_extent = s
-        grid.spacing = gap
-        grid.run_spacing = gap
-
-        for control in grid.controls:
-            if isinstance(control, ft.Stack):
-                control.width = s
-                control.height = s
-                for child in control.controls:
-                    child.width = s
-                    child.height = s
-                    if hasattr(child, 'content') and isinstance(child.content, ft.Text):
-                        child.content.size = max(8, s // 9)
-
-        size_text.value = str(s)
-        page.update()
+        _LAST_BUTTONS[idx], _LAST_BUTTONS[new_idx] = _LAST_BUTTONS[new_idx], _LAST_BUTTONS[idx]
+        _rebuild_grid()
+        if CONNECTED_HOST:
+            _http_raw("PUT", CONNECTED_HOST, SERVER_PORT,
+                     "config", {"buttons": _LAST_BUTTONS})
 
     def _on_press(host, bid):
+        if not host:
+            return
         ok, val = _http_raw("POST", host, SERVER_PORT, "press", {"id": bid})
         if not ok:
             status_text.value = f"Ошибка: {val}"
@@ -188,7 +187,7 @@ def main(page: ft.Page):
             global CONNECTED_HOST, _LAST_BUTTONS
             CONNECTED_HOST = host
             _LAST_BUTTONS = val.get("buttons", [])
-            build_tiles()
+            _rebuild_grid()
             status_text.value = "Подключено"
             status_text.color = _SUCCESS
         else:
@@ -227,15 +226,27 @@ def main(page: ft.Page):
         toggle_icon.icon = ft.Icons.EXPAND_LESS if _SETTINGS_SHOWN else ft.Icons.EXPAND_MORE
         page.update()
 
+    def toggle_edit(e):
+        global _EDIT_MODE
+        _EDIT_MODE = not _EDIT_MODE
+        edit_icon.icon = ft.Icons.EDIT_OFF if _EDIT_MODE else ft.Icons.EDIT
+        _rebuild_grid()
+
     toggle_icon = ft.IconButton(
         ft.Icons.EXPAND_LESS, icon_size=18, icon_color=FG2,
         on_click=toggle_settings,
+    )
+
+    edit_icon = ft.IconButton(
+        ft.Icons.EDIT, icon_size=18, icon_color=FG2,
+        on_click=toggle_edit,
     )
 
     header = ft.Container(
         content=ft.Row([
             ft.Text("Remote Hotkeys", size=20, weight=ft.FontWeight.BOLD, color=FG),
             ft.Container(expand=True),
+            edit_icon,
             toggle_icon,
             ft.IconButton(ft.Icons.REFRESH, icon_size=18,
                          icon_color=FG2, on_click=refresh_config),
@@ -255,6 +266,11 @@ def main(page: ft.Page):
                                 icon=ft.Icons.USB, on_click=try_usb),
                 ft.Container(expand=True),
                 status_text,
+            ]),
+            ft.Row([
+                ft.Text("Размер:", size=11, color=FG2),
+                size_slider,
+                size_label,
             ]),
         ], spacing=6, tight=True),
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),

@@ -3,7 +3,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from config_manager import get_buttons, add_button, update_button, delete_button
+from config_manager import load_config, save_config, get_buttons, add_button, update_button, delete_button
 from key_handler import press_keys
 
 app = FastAPI(title="Remote Hotkeys API", version="1.0.0")
@@ -33,6 +33,18 @@ class ButtonUpdate(BaseModel):
 @app.get("/config")
 def get_config():
     return {"buttons": get_buttons()}
+
+
+class ConfigData(BaseModel):
+    buttons: list[dict]
+
+
+@app.put("/config")
+def put_config(data: ConfigData):
+    cfg = load_config()
+    cfg["buttons"] = data.buttons
+    save_config(cfg)
+    return {"status": "saved"}
 
 
 @app.post("/press")
