@@ -15,6 +15,7 @@ CONNECTED_HOST = None
 _LAST_BUTTONS = []
 _SETTINGS_SHOWN = True
 _EDIT_MODE = False
+_SELECTED_IDX = -1
 _SUCCESS = "#00c853"
 _DANGER = "#ff1744"
 
@@ -74,15 +75,20 @@ def main(page: ft.Page):
         return (idx % cols) * cell + 10, (idx // cols) * cell + 10
 
     def _rebuild_grid():
+        global _SELECTED_IDX
         grid.controls.clear()
         edit_canvas.controls.clear()
+
+        if _SELECTED_IDX >= len(_LAST_BUTTONS):
+            _SELECTED_IDX = -1
 
         for idx, btn in enumerate(_LAST_BUTTONS):
             bid = btn["id"]
             label = btn.get("label", "?")
             s = int(btn.get("size", 100))
+            is_sel = idx == _SELECTED_IDX
 
-            container = ft.Container(
+            tile = ft.Container(
                 content=ft.Text(label, size=max(8, s // 9),
                               weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
@@ -99,43 +105,57 @@ def main(page: ft.Page):
                 if x is None:
                     x, y = _calc_grid_pos(idx)
 
-                body = ft.Container(
-                    content=container,
-                    width=s, height=s,
-                    bgcolor="#2a2a5e", border_radius=12,
-                    border=ft.border.all(2, ACCENT),
-                )
+                if is_sel:
+                    body = ft.Container(
+                        content=ft.Container(
+                            content=tile,
+                            width=s, height=s,
+                            bgcolor="#2a2a5e", border_radius=12,
+                            border=ft.border.all(2, ACCENT),
+                        ),
+                        width=s, height=s,
+                    )
 
-                move = ft.GestureDetector(
-                    content=body,
-                    on_pan_update=lambda e, b=btn: _move_update(e, b),
-                    on_pan_end=lambda e: _save_all(),
-                )
+                    move = ft.GestureDetector(
+                        content=body,
+                        on_pan_update=lambda e, b=btn: _move_update(e, b),
+                        on_pan_end=lambda e: _save_all(),
+                    )
 
-                hs = max(24, min(40, s // 3))
-                handle = ft.Container(
-                    content=ft.Text("╱", size=hs // 2, color=ACCENT,
-                                  text_align=ft.TextAlign.CENTER),
-                    width=hs, height=hs,
-                    bgcolor="#1a1a3e", border_radius=6,
-                    border=ft.border.all(1, ACCENT),
-                    alignment=ft.Alignment(1, 1),
-                    right=0, bottom=0,
-                )
+                    hs = max(24, min(40, s // 3))
+                    handle = ft.Container(
+                        content=ft.Text("╱", size=hs // 2, color=ACCENT,
+                                      text_align=ft.TextAlign.CENTER),
+                        width=hs, height=hs,
+                        bgcolor="#1a1a3e", border_radius=6,
+                        border=ft.border.all(1, ACCENT),
+                        alignment=ft.Alignment(1, 1),
+                        right=0, bottom=0,
+                    )
 
-                resize = ft.GestureDetector(
-                    content=handle,
-                    on_pan_update=lambda e, b=btn: _resize_update(e, b),
-                    on_pan_end=lambda e: _save_all(),
-                )
+                    resize = ft.GestureDetector(
+                        content=handle,
+                        on_pan_update=lambda e, b=btn: _resize_update(e, b),
+                        on_pan_end=lambda e: _save_all(),
+                    )
 
-                edit_canvas.controls.append(
-                    ft.Stack([move, resize], width=s, height=s, left=x, top=y)
-                )
+                    edit_canvas.controls.append(
+                        ft.Stack([move, resize], width=s, height=s, left=x, top=y)
+                    )
+                else:
+                    tile.left = x
+                    tile.top = y
+                    tile.on_click = lambda e, i=idx: _select(i)
+                    edit_canvas.controls.append(tile)
             else:
-                grid.controls.append(container)
+                grid.controls.append(tile)
 
         page.update()
+
+    def _select(idx):
+        global _SELECTED_IDX
+        _SELECTED_IDX = idx if idx != _SELECTED_IDX else -1
+        _rebuild_grid()
 
     def _move_update(e, btn):
         btn["x"] = btn.get("x", 0) + e.delta_x
@@ -216,11 +236,14 @@ def main(page: ft.Page):
         page.update()
 
     def toggle_edit(e):
-        global _EDIT_MODE
+        global _EDIT_MODE, _SELECTED_IDX
         _EDIT_MODE = not _EDIT_MODE
         edit_icon.icon = ft.Icons.EDIT_OFF if _EDIT_MODE else ft.Icons.EDIT
         grid.visible = not _EDIT_MODE
         edit_canvas.visible = _EDIT_MODE
+        if not _EDIT_MODE:
+            _save_all()
+        _SELECTED_IDX = -1
         _rebuild_grid()
 
     toggle_icon = ft.IconButton(
