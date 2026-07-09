@@ -94,6 +94,8 @@ def main(page: ft.Page):
         spacing=8, run_spacing=8, padding=10,
     )
 
+    edit_canvas = ft.Stack(expand=True)
+
     size_label = ft.Text(str(int(_TILE_SIZE)), size=11, color=FG2)
 
     def _set_size(val):
@@ -101,6 +103,13 @@ def main(page: ft.Page):
         _TILE_SIZE = val
         size_label.value = str(int(val))
         _rebuild_grid()
+
+    def _calc_grid_pos(idx, total=None):
+        s = int(_TILE_SIZE)
+        gap = max(4, s // 12)
+        cols = calc_cols(s)
+        cell = s + gap
+        return (idx % cols) * cell + 10, (idx // cols) * cell + 10
 
     def _rebuild_grid():
         s = int(_TILE_SIZE)
@@ -111,6 +120,7 @@ def main(page: ft.Page):
         grid.spacing = gap
         grid.run_spacing = gap
         grid.controls.clear()
+        edit_canvas.controls.clear()
 
         for idx, btn in enumerate(_LAST_BUTTONS):
             bid = btn["id"]
@@ -128,40 +138,32 @@ def main(page: ft.Page):
             )
 
             if _EDIT_MODE:
-                drag = ft.Draggable(
+                x = btn.get("x")
+                y = btn.get("y")
+                if x is None:
+                    x, y = _calc_grid_pos(idx)
+                tile.left = x
+                tile.top = y
+                tile.bgcolor = "#2a2a5e"
+                tile.border = ft.border.all(1, "#4a4a8e")
+
+                tile = ft.GestureDetector(
                     content=tile,
-                    content_when_dragging=ft.Container(
-                        content=ft.Text(label, size=max(8, s // 9),
-                                      weight=ft.FontWeight.W_600,
-                                      color=FG, text_align=ft.TextAlign.CENTER),
-                        width=s, height=s,
-                        bgcolor="#3a3a6e", border_radius=12,
-                        alignment=ft.Alignment(0, 0),
-                    ),
-                    data=str(idx),
-                    group="buttons",
+                    on_pan_update=lambda e, b=btn: _drag_update(e, b),
+                    on_pan_end=lambda e: _drag_end(),
                 )
-                grid.controls.append(
-                    ft.DragTarget(
-                        content=drag,
-                        group="buttons",
-                        on_accept=lambda e, i=idx: _on_drop(e, i),
-                    )
-                )
+                edit_canvas.controls.append(tile)
             else:
                 grid.controls.append(tile)
 
         page.update()
 
-    def _on_drop(e, target_idx):
-        source_idx = int(e.data)
-        if source_idx == target_idx:
-            return
-        global _LAST_BUTTONS
-        item = _LAST_BUTTONS.pop(source_idx)
-        new_idx = target_idx if source_idx > target_idx else target_idx - 1
-        _LAST_BUTTONS.insert(new_idx, item)
+    def _drag_update(e, btn):
+        btn["x"] = btn.get("x", 0) + e.delta_x
+        btn["y"] = btn.get("y", 0) + e.delta_y
         _rebuild_grid()
+
+    def _drag_end():
         if CONNECTED_HOST:
             _http_raw("PUT", CONNECTED_HOST, SERVER_PORT,
                      "config", {"buttons": _LAST_BUTTONS})
@@ -233,6 +235,8 @@ def main(page: ft.Page):
         global _EDIT_MODE
         _EDIT_MODE = not _EDIT_MODE
         edit_icon.icon = ft.Icons.EDIT_OFF if _EDIT_MODE else ft.Icons.EDIT
+        grid.visible = not _EDIT_MODE
+        edit_canvas.visible = _EDIT_MODE
         _rebuild_grid()
 
     toggle_icon = ft.IconButton(
@@ -279,7 +283,8 @@ def main(page: ft.Page):
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
     )
 
-    page.add(header, settings_panel, progress, grid)
+    edit_canvas.visible = False
+    page.add(header, settings_panel, progress, grid, edit_canvas)
 
 
 if __name__ == "__main__":
