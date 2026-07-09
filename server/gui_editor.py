@@ -311,4 +311,31 @@ class EditorApp:
         kb.hook(on_key)
 
     def on_close(self):
-        self.root.destroy()
+        self.root.withdraw()
+        self._show_tray()
+
+    def _show_tray(self):
+        if getattr(self, '_tray_thread', None) and self._tray_thread.is_alive():
+            return
+        import pystray
+        from PIL import Image, ImageDraw
+
+        img = Image.new("RGBA", (64, 64), (108, 99, 255, 255))
+        draw = ImageDraw.Draw(img)
+        draw.ellipse([8, 8, 56, 56], fill=(108, 99, 255, 255))
+
+        def on_show(icon, item):
+            icon.stop()
+            self.root.after(0, self.root.deiconify)
+
+        def on_exit(icon, item):
+            icon.stop()
+            self.root.after(0, self.root.destroy)
+
+        menu = pystray.Menu(
+            pystray.MenuItem("Show", on_show, default=True),
+            pystray.MenuItem("Exit", on_exit),
+        )
+        icon = pystray.Icon("rh", img, "Remote Hotkeys", menu)
+        self._tray_thread = threading.Thread(target=icon.run, daemon=True)
+        self._tray_thread.start()
