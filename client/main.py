@@ -26,8 +26,7 @@ def _http_raw(method, host, port, path, data=None):
         conn = http.client.HTTPConnection(host, port, timeout=TIMEOUT)
         body = json.dumps(data).encode() if data else None
         conn.request(method, f"/{path}", body=body,
-                     headers={"Content-Type": "application/json",
-                              "Connection": "close"})
+                     headers={"Content-Type": "application/json", "Connection": "close"})
         resp = conn.getresponse()
         if resp.status != 200:
             return (False, f"Код: {resp.status}")
@@ -46,16 +45,17 @@ def _http_raw(method, host, port, path, data=None):
 
 
 def main(page: ft.Page):
-    global CONNECTED_HOST, _SETTINGS_SHOWN, _LAST_BUTTONS, _EDIT_MODE
+    global CONNECTED_HOST, _SETTINGS_SHOWN, _LAST_BUTTONS, _EDIT_MODE, _SELECTED_IDX
     page.title = "Remote Hotkeys"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
     page.padding = 0
     page.spacing = 0
 
+    saved_ip = page.client_storage.get("saved_ip") or DEFAULT_WIFI_IP
+
     ip_input = ft.TextField(
-        label="IP адрес ПК",
-        value=page.client_storage.get("saved_ip") or DEFAULT_WIFI_IP,
+        label="IP адрес ПК", value=saved_ip,
         width=200, height=38, text_size=12,
         border_color="#252550", focused_border_color=ACCENT,
         bgcolor=BG2, color=FG, cursor_color=ACCENT,
@@ -65,117 +65,27 @@ def main(page: ft.Page):
     progress = ft.ProgressBar(visible=False, color=ACCENT, height=2)
 
     grid = ft.GridView(
-        expand=True, child_aspect_ratio=1.0,
+        expand=True, runs_count=3,
+        max_extent=110, child_aspect_ratio=1.0,
         spacing=8, run_spacing=8, padding=10,
-        runs_count=3, max_extent=110,
     )
 
-    edit_canvas = ft.Stack(expand=True)
-
-    def _calc_grid_pos(idx):
-        s = 100
-        cols = 3
-        gap = 8
-        cell = s + gap
-        return (idx % cols) * cell + 10, (idx // cols) * cell + 10
-
-    def _rebuild_grid():
-        global _SELECTED_IDX
+    def update_view():
         grid.controls.clear()
-        edit_canvas.controls.clear()
-
-        if _SELECTED_IDX >= len(_LAST_BUTTONS):
-            _SELECTED_IDX = -1
-
-        for idx, btn in enumerate(_LAST_BUTTONS):
-            bid = btn["id"]
+        for btn in _LAST_BUTTONS:
             label = btn.get("label", "?")
-            s = int(btn.get("size", 100))
-            is_sel = idx == _SELECTED_IDX
-
+            bid = btn["id"]
             tile = ft.Container(
-                content=ft.Text(label, size=max(8, s // 9),
-                              weight=ft.FontWeight.W_600,
+                content=ft.Text(label, size=12, weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
-                width=s, height=s,
+                width=100, height=100,
                 bgcolor=BG2, border_radius=12,
                 alignment=ft.Alignment(0, 0),
-                ink=not _EDIT_MODE,
-                on_click=None if _EDIT_MODE else lambda e, b=bid: _on_press(CONNECTED_HOST, b),
+                ink=True,
+                on_click=lambda e, b=bid: _on_press(CONNECTED_HOST, b),
             )
-
-            if _EDIT_MODE:
-                x = btn.get("x")
-                y = btn.get("y")
-                if x is None:
-                    x, y = _calc_grid_pos(idx)
-
-                if is_sel:
-                    body = ft.Container(
-                        content=ft.Container(
-                            content=tile,
-                            width=s, height=s,
-                            bgcolor="#2a2a5e", border_radius=12,
-                            border=ft.border.all(2, ACCENT),
-                        ),
-                        width=s, height=s,
-                    )
-
-                    move = ft.GestureDetector(
-                        content=body,
-                        on_pan_update=lambda e, b=btn: _move_update(e, b),
-                        on_pan_end=lambda e: _save_all(),
-                    )
-
-                    hs = max(24, min(40, s // 3))
-                    handle = ft.Container(
-                        content=ft.Text("╱", size=hs // 2, color=ACCENT,
-                                      text_align=ft.TextAlign.CENTER),
-                        width=hs, height=hs,
-                        bgcolor="#1a1a3e", border_radius=6,
-                        border=ft.border.all(1, ACCENT),
-                        alignment=ft.Alignment(1, 1),
-                        right=0, bottom=0,
-                    )
-
-                    resize = ft.GestureDetector(
-                        content=handle,
-                        on_pan_update=lambda e, b=btn: _resize_update(e, b),
-                        on_pan_end=lambda e: _save_all(),
-                    )
-
-                    edit_canvas.controls.append(
-                        ft.Stack([move, resize], width=s, height=s, left=x, top=y)
-                    )
-                else:
-                    tile.on_click = lambda e, i=idx: _select(i)
-                    tile.left = x
-                    tile.top = y
-                    edit_canvas.controls.append(tile)
-            else:
-                grid.controls.append(tile)
-
+            grid.controls.append(tile)
         page.update()
-
-    def _select(idx):
-        global _SELECTED_IDX
-        _SELECTED_IDX = idx if idx != _SELECTED_IDX else -1
-        _rebuild_grid()
-
-    def _move_update(e, btn):
-        btn["x"] = btn.get("x", 0) + e.delta_x
-        btn["y"] = btn.get("y", 0) + e.delta_y
-        _rebuild_grid()
-
-    def _resize_update(e, btn):
-        old = int(btn.get("size", 100))
-        btn["size"] = max(60, min(200, old + (e.delta_x + e.delta_y) / 2))
-        _rebuild_grid()
-
-    def _save_all():
-        if CONNECTED_HOST:
-            _http_raw("PUT", CONNECTED_HOST, SERVER_PORT,
-                     "config", {"buttons": _LAST_BUTTONS})
 
     def _on_press(host, bid):
         if not host:
@@ -194,21 +104,18 @@ def main(page: ft.Page):
         status_text.value = "Подключение..."
         status_text.color = FG2
         page.update()
-
         ok, val = _http_raw("GET", host, SERVER_PORT, "config")
-
         if ok:
             global CONNECTED_HOST, _LAST_BUTTONS
             CONNECTED_HOST = host
             page.client_storage.set("saved_ip", host)
             _LAST_BUTTONS = val.get("buttons", [])
-            _rebuild_grid()
+            update_view()
             status_text.value = "Подключено"
             status_text.color = _SUCCESS
         else:
             status_text.value = f"Ошибка: {val}"
             status_text.color = _DANGER
-
         progress.visible = False
         page.update()
 
@@ -245,21 +152,15 @@ def main(page: ft.Page):
         global _EDIT_MODE, _SELECTED_IDX
         _EDIT_MODE = not _EDIT_MODE
         edit_icon.icon = ft.Icons.EDIT_OFF if _EDIT_MODE else ft.Icons.EDIT
-        grid.visible = not _EDIT_MODE
-        edit_canvas.visible = _EDIT_MODE
         if not _EDIT_MODE:
-            _save_all()
-        _SELECTED_IDX = -1
-        _rebuild_grid()
+            _SELECTED_IDX = -1
+        update_view()
 
     toggle_icon = ft.IconButton(
-        ft.Icons.EXPAND_LESS, icon_size=18, icon_color=FG2,
-        on_click=toggle_settings,
+        ft.Icons.EXPAND_LESS, icon_size=18, icon_color=FG2, on_click=toggle_settings,
     )
-
     edit_icon = ft.IconButton(
-        ft.Icons.EDIT, icon_size=18, icon_color=FG2,
-        on_click=toggle_edit,
+        ft.Icons.EDIT, icon_size=18, icon_color=FG2, on_click=toggle_edit,
     )
 
     header = ft.Container(
@@ -268,8 +169,7 @@ def main(page: ft.Page):
             ft.Container(expand=True),
             edit_icon,
             toggle_icon,
-            ft.IconButton(ft.Icons.REFRESH, icon_size=18,
-                         icon_color=FG2, on_click=refresh_config),
+            ft.IconButton(ft.Icons.REFRESH, icon_size=18, icon_color=FG2, on_click=refresh_config),
         ]),
         padding=ft.Padding(left=15, top=45, right=5, bottom=5),
     )
@@ -278,12 +178,10 @@ def main(page: ft.Page):
         content=ft.Column([
             ft.Row([
                 ip_input,
-                ft.ElevatedButton("Подкл.", height=38, color="white",
-                                bgcolor=ACCENT, on_click=try_connect),
+                ft.ElevatedButton("Подкл.", height=38, color="white", bgcolor=ACCENT, on_click=try_connect),
             ]),
             ft.Row([
-                ft.ElevatedButton("USB", height=32, color=FG2, bgcolor=BG2,
-                                icon=ft.Icons.USB, on_click=try_usb),
+                ft.ElevatedButton("USB", height=32, color=FG2, bgcolor=BG2, icon=ft.Icons.USB, on_click=try_usb),
                 ft.Container(expand=True),
                 status_text,
             ]),
@@ -291,9 +189,7 @@ def main(page: ft.Page):
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
     )
 
-    edit_canvas.visible = False
-    content_stack = ft.Stack([grid, edit_canvas], expand=True)
-    page.add(header, settings_panel, progress, content_stack)
+    page.add(header, settings_panel, progress, grid)
 
 
 if __name__ == "__main__":
