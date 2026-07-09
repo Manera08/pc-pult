@@ -54,7 +54,8 @@ def main(page: ft.Page):
     page.spacing = 0
 
     ip_input = ft.TextField(
-        label="IP адрес ПК", value=DEFAULT_WIFI_IP,
+        label="IP адрес ПК",
+        value=page.client_storage.get("saved_ip") or DEFAULT_WIFI_IP,
         width=200, height=38, text_size=12,
         border_color="#252550", focused_border_color=ACCENT,
         bgcolor=BG2, color=FG, cursor_color=ACCENT,
@@ -195,6 +196,7 @@ def main(page: ft.Page):
         if ok:
             global CONNECTED_HOST, _LAST_BUTTONS
             CONNECTED_HOST = host
+            page.client_storage.set("saved_ip", host)
             _LAST_BUTTONS = val.get("buttons", [])
             _rebuild_grid()
             status_text.value = "Подключено"
