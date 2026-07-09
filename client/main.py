@@ -142,28 +142,59 @@ def main(page: ft.Page):
                 y = btn.get("y")
                 if x is None:
                     x, y = _calc_grid_pos(idx)
-                tile.left = x
-                tile.top = y
-                tile.bgcolor = "#2a2a5e"
-                tile.border = ft.border.all(1, "#4a4a8e")
 
-                tile = ft.GestureDetector(
+                tile_body = ft.Container(
                     content=tile,
-                    on_pan_update=lambda e, b=btn: _drag_update(e, b),
-                    on_pan_end=lambda e: _drag_end(),
+                    width=s, height=s,
+                    bgcolor="#2a2a5e", border_radius=12,
+                    border=ft.border.all(2, ACCENT),
                 )
-                edit_canvas.controls.append(tile)
+
+                move_detector = ft.GestureDetector(
+                    content=tile_body,
+                    on_pan_update=lambda e, b=btn: _move_update(e, b),
+                    on_pan_end=lambda e: _save_positions(),
+                )
+
+                handle = ft.Container(
+                    content=ft.Text("╱", size=s // 5, color=ACCENT,
+                                  text_align=ft.TextAlign.CENTER),
+                    width=40, height=40,
+                    bgcolor="#1a1a3e", border_radius=8,
+                    border=ft.border.all(1, ACCENT),
+                    alignment=ft.Alignment(1, 1),
+                    right=0, bottom=0,
+                )
+
+                resize_detector = ft.GestureDetector(
+                    content=handle,
+                    on_pan_update=lambda e: _resize_update(e),
+                    on_pan_end=lambda e: _save_positions(),
+                )
+
+                btn_stack = ft.Stack(
+                    [move_detector, resize_detector],
+                    width=s, height=s, left=x, top=y,
+                )
+                edit_canvas.controls.append(btn_stack)
             else:
                 grid.controls.append(tile)
 
         page.update()
 
-    def _drag_update(e, btn):
+    def _move_update(e, btn):
         btn["x"] = btn.get("x", 0) + e.delta_x
         btn["y"] = btn.get("y", 0) + e.delta_y
         _rebuild_grid()
 
-    def _drag_end():
+    def _resize_update(e):
+        global _TILE_SIZE
+        _TILE_SIZE = max(60, min(180, _TILE_SIZE + (e.delta_x + e.delta_y) / 4))
+        size_slider.value = _TILE_SIZE
+        size_label.value = str(int(_TILE_SIZE))
+        _rebuild_grid()
+
+    def _save_positions():
         if CONNECTED_HOST:
             _http_raw("PUT", CONNECTED_HOST, SERVER_PORT,
                      "config", {"buttons": _LAST_BUTTONS})
