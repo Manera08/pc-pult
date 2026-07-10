@@ -14,8 +14,7 @@ FG2 = "#b0b0cc"
 CONNECTED_HOST = None
 _LAST_BUTTONS = []
 _SETTINGS_SHOWN = True
-_EDIT_MODE = False
-_SELECTED_IDX = -1
+_TILE_SIZE = 100.0
 _SUCCESS = "#00c853"
 _DANGER = "#ff1744"
 
@@ -26,7 +25,8 @@ def _http_raw(method, host, port, path, data=None):
         conn = http.client.HTTPConnection(host, port, timeout=TIMEOUT)
         body = json.dumps(data).encode() if data else None
         conn.request(method, f"/{path}", body=body,
-                     headers={"Content-Type": "application/json", "Connection": "close"})
+                     headers={"Content-Type": "application/json",
+                              "Connection": "close"})
         resp = conn.getresponse()
         if resp.status != 200:
             return (False, f"Код: {resp.status}")
@@ -44,8 +44,14 @@ def _http_raw(method, host, port, path, data=None):
             conn.close()
 
 
+def calc_cols(size):
+    if size >= 150: return 2
+    if size >= 100: return 3
+    return 4
+
+
 def main(page: ft.Page):
-    global CONNECTED_HOST, _SETTINGS_SHOWN, _LAST_BUTTONS, _EDIT_MODE, _SELECTED_IDX
+    global CONNECTED_HOST, _SETTINGS_SHOWN, _TILE_SIZE, _LAST_BUTTONS
     page.title = "Remote Hotkeys"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
@@ -70,21 +76,87 @@ def main(page: ft.Page):
         spacing=8, run_spacing=8, padding=10,
     )
 
-    def update_view():
+    size_slider = ft.Slider(
+        min=60, max=200, value=_TILE_SIZE, divisions=14,
+        width=150, height=30,
+        active_color=ACCENT, inactive_color=BG2,
+        thumb_color=ACCENT,
+        on_change=lambda e: _set_size(e.control.value),
+    )
+    size_label = ft.Text(str(int(_TILE_SIZE)), size=11, color=FG2)
+
+    def _set_size(val):
+        global _TILE_SIZE
+        _TILE_SIZE = val
+        size_label.value = str(int(val))
+        build_tiles()
+
+    def build_tiles():
+        s = int(_TILE_SIZE)
+        cols = calc_cols(s)
+        gap = max(4, s // 12)
+        grid.runs_count = cols
+        grid.max_extent = s
+        grid.spacing = gap
+        grid.run_spacing = gap
         grid.controls.clear()
+
         for btn in _LAST_BUTTONS:
-            label = btn.get("label", "?")
             bid = btn["id"]
-            tile = ft.Container(
-                content=ft.Text(label, size=12, weight=ft.FontWeight.W_600,
+            label = btn.get("label", "?")
+
+            tile_bg = ft.Container(
+                content=ft.Text(label, size=max(8, s // 9),
+                              weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
-                width=100, height=100,
+                width=s, height=s,
                 bgcolor=BG2, border_radius=12,
                 alignment=ft.Alignment(0, 0),
                 ink=True,
                 on_click=lambda e, b=bid: _on_press(CONNECTED_HOST, b),
             )
-            grid.controls.append(tile)
+
+            hs = max(36, min(48, s // 4))
+            handle = ft.GestureDetector(
+                content=ft.Container(
+                    content=ft.Text("╱", size=hs // 2, color=ACCENT,
+                                  text_align=ft.TextAlign.CENTER),
+                    width=hs, height=hs,
+                    bgcolor="#1a1a3e", border_radius=hs // 4,
+                    border=ft.border.all(1, ACCENT),
+                    alignment=ft.Alignment(1, 1),
+                ),
+                on_pan_update=lambda e: _resize_update(e),
+            )
+
+            stack = ft.Stack([tile_bg, handle], width=s, height=s)
+            grid.controls.append(stack)
+
+        page.update()
+
+    def _resize_update(e):
+        global _TILE_SIZE
+        _TILE_SIZE = max(60, min(200, _TILE_SIZE + (e.delta_x + e.delta_y) / 2))
+        size_slider.value = _TILE_SIZE
+        size_label.value = str(int(_TILE_SIZE))
+        s = int(_TILE_SIZE)
+        cols = calc_cols(s)
+        gap = max(4, s // 12)
+        grid.runs_count = cols
+        grid.max_extent = s
+        grid.spacing = gap
+        grid.run_spacing = gap
+
+        for control in grid.controls:
+            if isinstance(control, ft.Stack):
+                control.width = s
+                control.height = s
+                for child in control.controls:
+                    child.width = s
+                    child.height = s
+                    if hasattr(child, 'content') and isinstance(child.content, ft.Text):
+                        child.content.size = max(8, s // 9)
+
         page.update()
 
     def _on_press(host, bid):
@@ -104,18 +176,21 @@ def main(page: ft.Page):
         status_text.value = "Подключение..."
         status_text.color = FG2
         page.update()
+
         ok, val = _http_raw("GET", host, SERVER_PORT, "config")
+
         if ok:
             global CONNECTED_HOST, _LAST_BUTTONS
             CONNECTED_HOST = host
             page.client_storage.set("saved_ip", host)
             _LAST_BUTTONS = val.get("buttons", [])
-            update_view()
+            build_tiles()
             status_text.value = "Подключено"
             status_text.color = _SUCCESS
         else:
             status_text.value = f"Ошибка: {val}"
             status_text.color = _DANGER
+
         progress.visible = False
         page.update()
 
@@ -148,28 +223,18 @@ def main(page: ft.Page):
         toggle_icon.icon = ft.Icons.EXPAND_LESS if _SETTINGS_SHOWN else ft.Icons.EXPAND_MORE
         page.update()
 
-    def toggle_edit(e):
-        global _EDIT_MODE, _SELECTED_IDX
-        _EDIT_MODE = not _EDIT_MODE
-        edit_icon.icon = ft.Icons.EDIT_OFF if _EDIT_MODE else ft.Icons.EDIT
-        if not _EDIT_MODE:
-            _SELECTED_IDX = -1
-        update_view()
-
     toggle_icon = ft.IconButton(
-        ft.Icons.EXPAND_LESS, icon_size=18, icon_color=FG2, on_click=toggle_settings,
-    )
-    edit_icon = ft.IconButton(
-        ft.Icons.EDIT, icon_size=18, icon_color=FG2, on_click=toggle_edit,
+        ft.Icons.EXPAND_LESS, icon_size=18, icon_color=FG2,
+        on_click=toggle_settings,
     )
 
     header = ft.Container(
         content=ft.Row([
             ft.Text("Remote Hotkeys", size=20, weight=ft.FontWeight.BOLD, color=FG),
             ft.Container(expand=True),
-            edit_icon,
             toggle_icon,
-            ft.IconButton(ft.Icons.REFRESH, icon_size=18, icon_color=FG2, on_click=refresh_config),
+            ft.IconButton(ft.Icons.REFRESH, icon_size=18,
+                         icon_color=FG2, on_click=refresh_config),
         ]),
         padding=ft.Padding(left=15, top=45, right=5, bottom=5),
     )
@@ -178,12 +243,19 @@ def main(page: ft.Page):
         content=ft.Column([
             ft.Row([
                 ip_input,
-                ft.ElevatedButton("Подкл.", height=38, color="white", bgcolor=ACCENT, on_click=try_connect),
+                ft.ElevatedButton("Подкл.", height=38, color="white",
+                                bgcolor=ACCENT, on_click=try_connect),
             ]),
             ft.Row([
-                ft.ElevatedButton("USB", height=32, color=FG2, bgcolor=BG2, icon=ft.Icons.USB, on_click=try_usb),
+                ft.ElevatedButton("USB", height=32, color=FG2, bgcolor=BG2,
+                                icon=ft.Icons.USB, on_click=try_usb),
                 ft.Container(expand=True),
                 status_text,
+            ]),
+            ft.Row([
+                ft.Text("Размер:", size=11, color=FG2),
+                size_slider,
+                size_label,
             ]),
         ], spacing=6, tight=True),
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
