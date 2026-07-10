@@ -89,6 +89,75 @@ def main(page: ft.Page):
     edit_wrapper = ft.Container(content=edit_stack, expand=True, visible=False)
     _edit_refs = {}
 
+    sx = ft.Slider(min=0, max=800, value=0, divisions=80, width=180, height=24,
+                   active_color=ACCENT, inactive_color=BG2, thumb_color=ACCENT,
+                   on_change=lambda e: _slider_update())
+    sy = ft.Slider(min=0, max=800, value=0, divisions=80, width=180, height=24,
+                   active_color=ACCENT, inactive_color=BG2, thumb_color=ACCENT,
+                   on_change=lambda e: _slider_update())
+    sw = ft.Slider(min=60, max=300, value=100, divisions=24, width=180, height=24,
+                   active_color=ACCENT, inactive_color=BG2, thumb_color=ACCENT,
+                   on_change=lambda e: _slider_update())
+    sh = ft.Slider(min=60, max=300, value=100, divisions=24, width=180, height=24,
+                   active_color=ACCENT, inactive_color=BG2, thumb_color=ACCENT,
+                   on_change=lambda e: _slider_update())
+    sx_label = ft.Text("0", size=10, color=FG2)
+    sy_label = ft.Text("0", size=10, color=FG2)
+    sw_label = ft.Text("100", size=10, color=FG2)
+    sh_label = ft.Text("100", size=10, color=FG2)
+
+    slider_panel = ft.Container(
+        content=ft.Column([
+            ft.Row([ft.Text("X:", size=10, color=FG2, width=16), sx, sx_label]),
+            ft.Row([ft.Text("Y:", size=10, color=FG2, width=16), sy, sy_label]),
+            ft.Row([ft.Text("W:", size=10, color=FG2, width=16), sw, sw_label]),
+            ft.Row([ft.Text("H:", size=10, color=FG2, width=16), sh, sh_label]),
+        ], spacing=2, tight=True),
+        padding=ft.Padding(left=15, right=10, top=4, bottom=4),
+        bgcolor="#151530",
+        border_radius=8,
+        visible=False,
+    )
+
+    def _slider_update():
+        bid = _SELECTED_BTN
+        if not bid:
+            return
+        for b in _LAST_BUTTONS:
+            if b["id"] == bid:
+                b["x"] = int(sx.value)
+                b["y"] = int(sy.value)
+                b["width"] = int(sw.value)
+                b["height"] = int(sh.value)
+                _update_btn_pos(bid)
+                break
+
+    def _update_btn_pos(bid):
+        w = _edit_refs.get(bid)
+        if not w:
+            return
+        for b in _LAST_BUTTONS:
+            if b["id"] == bid:
+                w.left = b["x"]
+                w.top = b["y"]
+                w.width = b["width"]
+                w.height = b["height"]
+                stack = w.content
+                stack.width = b["width"]
+                stack.height = b["height"]
+                for child in stack.controls:
+                    if isinstance(child, ft.GestureDetector):
+                        child.width = b["width"]
+                        child.height = b["height"]
+                        tile = child.content
+                        if isinstance(tile, ft.Container):
+                            tile.width = b["width"]
+                            tile.height = b["height"]
+                            if tile.content and isinstance(tile.content, ft.Text):
+                                tile.content.size = max(8, b["width"] // 9)
+                break
+        page.update()
+
     def build_tiles():
         s = int(_TILE_SIZE)
         cols = calc_cols(s)
@@ -147,31 +216,7 @@ def main(page: ft.Page):
                 on_click=lambda e, b=bid: _select_btn(b),
             )
 
-            move_gd = ft.GestureDetector(
-                content=tile_bg,
-                on_pan_start=lambda e: None,
-                on_pan_update=lambda e, b=bid: _move_btn(e, b),
-            )
-
-            if selected:
-                hs = max(20, min(36, bw // 4))
-                corner_gd = ft.GestureDetector(
-                    content=ft.Container(
-                        bgcolor=ACCENT,
-                        width=hs, height=hs,
-                        border_radius=hs,
-                    ),
-                    on_pan_start=lambda e: None,
-                    on_pan_update=lambda e, b=bid: _resize_btn(e, b),
-                )
-                btn_stack = ft.Stack([
-                    move_gd,
-                    ft.Container(content=corner_gd, right=0, bottom=0),
-                ], width=bw, height=bh)
-            else:
-                btn_stack = move_gd
-
-            wrapper = ft.Container(content=btn_stack, left=bx, top=by)
+            wrapper = ft.Container(content=tile_bg, left=bx, top=by, width=bw, height=bh)
             _edit_refs[bid] = wrapper
             edit_stack.controls.append(wrapper)
         page.update()
@@ -180,46 +225,21 @@ def main(page: ft.Page):
         global _SELECTED_BTN
         _SELECTED_BTN = bid if _SELECTED_BTN != bid else None
         build_edit_tiles()
-
-    def _move_btn(e, bid):
-        w = _edit_refs.get(bid)
-        if not w:
-            return
-        for b in _LAST_BUTTONS:
-            if b["id"] == bid:
-                b["x"] = b.get("x", 0) + e.delta_x
-                b["y"] = b.get("y", 0) + e.delta_y
-                w.left = b["x"]
-                w.top = b["y"]
-                break
-        page.update()
-
-    def _resize_btn(e, bid):
-        w = _edit_refs.get(bid)
-        if not w:
-            return
-        for b in _LAST_BUTTONS:
-            if b["id"] == bid:
-                new_w = max(60, min(300, b.get("width", 100) + e.delta_x))
-                new_h = max(60, min(300, b.get("height", 100) + e.delta_y))
-                b["width"] = new_w
-                b["height"] = new_h
-                w.width = new_w
-                w.height = new_h
-                stack = w.content
-                stack.width = new_w
-                stack.height = new_h
-                for child in stack.controls:
-                    if isinstance(child, ft.GestureDetector):
-                        child.width = new_w
-                        child.height = new_h
-                        tile = child.content
-                        if isinstance(tile, ft.Container):
-                            tile.width = new_w
-                            tile.height = new_h
-                            if tile.content and isinstance(tile.content, ft.Text):
-                                tile.content.size = max(8, new_w // 9)
-                break
+        if _SELECTED_BTN:
+            for b in _LAST_BUTTONS:
+                if b["id"] == _SELECTED_BTN:
+                    sx.value = b.get("x", 0)
+                    sy.value = b.get("y", 0)
+                    sw.value = b.get("width", 100)
+                    sh.value = b.get("height", 100)
+                    sx_label.value = str(int(sx.value))
+                    sy_label.value = str(int(sy.value))
+                    sw_label.value = str(int(sw.value))
+                    sh_label.value = str(int(sh.value))
+                    break
+            slider_panel.visible = True
+        else:
+            slider_panel.visible = False
         page.update()
 
     def _on_press(host, bid):
@@ -315,6 +335,7 @@ def main(page: ft.Page):
             _SELECTED_BTN = None
             if CONNECTED_HOST:
                 _save_config(CONNECTED_HOST, _LAST_BUTTONS)
+            slider_panel.visible = False
             edit_wrapper.visible = False
             grid.visible = True
             build_tiles()
@@ -381,7 +402,7 @@ def main(page: ft.Page):
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
     )
 
-    page.add(header, settings_panel, progress, grid, edit_wrapper)
+    page.add(header, settings_panel, progress, slider_panel, grid, edit_wrapper)
 
 
 if __name__ == "__main__":
