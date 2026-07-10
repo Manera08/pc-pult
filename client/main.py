@@ -126,7 +126,6 @@ def main(page: ft.Page):
                                   text_align=ft.TextAlign.CENTER),
                     width=hs, height=hs,
                     bgcolor="#1a1a3e", border_radius=hs // 4,
-                    border=ft.border.all(1, ACCENT),
                     alignment=ft.Alignment(1, 1),
                 ),
                 on_pan_update=lambda e: _resize_update(e),
