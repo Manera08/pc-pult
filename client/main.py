@@ -79,14 +79,7 @@ def main(page: ft.Page):
     status_text = ft.Text("", size=11, color=FG2)
     progress = ft.ProgressBar(visible=False, color=ACCENT, height=2)
 
-    grid = ft.GridView(
-        expand=True, runs_count=3,
-        max_extent=110, child_aspect_ratio=1.0,
-        spacing=8, run_spacing=8, padding=10,
-    )
-
-    edit_stack = ft.Stack(expand=True)
-    edit_wrapper = ft.Container(content=edit_stack, expand=True, visible=False)
+    main_stack = ft.Stack(expand=True)
     _edit_refs = {}
 
     sx = ft.Slider(min=0, max=800, value=0, divisions=80, width=180, height=24,
@@ -142,50 +135,42 @@ def main(page: ft.Page):
                 w.top = b["y"]
                 w.width = b["width"]
                 w.height = b["height"]
-                stack = w.content
-                stack.width = b["width"]
-                stack.height = b["height"]
-                for child in stack.controls:
-                    if isinstance(child, ft.GestureDetector):
-                        child.width = b["width"]
-                        child.height = b["height"]
-                        tile = child.content
-                        if isinstance(tile, ft.Container):
-                            tile.width = b["width"]
-                            tile.height = b["height"]
-                            if tile.content and isinstance(tile.content, ft.Text):
-                                tile.content.size = max(8, b["width"] // 9)
+                tile = w.content
+                if isinstance(tile, ft.Container):
+                    tile.width = b["width"]
+                    tile.height = b["height"]
+                    if tile.content and isinstance(tile.content, ft.Text):
+                        tile.content.size = max(8, b["width"] // 9)
                 break
         page.update()
 
     def build_tiles():
-        s = int(_TILE_SIZE)
-        cols = calc_cols(s)
-        gap = max(4, s // 12)
-        grid.runs_count = cols
-        grid.max_extent = s
-        grid.spacing = gap
-        grid.run_spacing = gap
-        grid.controls.clear()
-
+        main_stack.controls.clear()
         for btn in _LAST_BUTTONS:
             bid = btn["id"]
             label = btn.get("label", "?")
+            bw = btn.get("width", 100)
+            bh = btn.get("height", 100)
+            bx = btn.get("x", 0)
+            by = btn.get("y", 0)
+
             tile = ft.Container(
-                content=ft.Text(label, size=max(8, s // 9),
+                content=ft.Text(label, size=max(8, bw // 9),
                               weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
-                width=s, height=s,
+                width=bw, height=bh,
                 bgcolor=BG2, border_radius=12,
                 alignment=ft.Alignment(0, 0),
                 ink=True,
                 on_click=lambda e, b=bid: _on_press(CONNECTED_HOST, b),
             )
-            grid.controls.append(tile)
+
+            wrapper = ft.Container(content=tile, left=bx, top=by, width=bw, height=bh)
+            main_stack.controls.append(wrapper)
         page.update()
 
     def build_edit_tiles():
-        edit_stack.controls.clear()
+        main_stack.controls.clear()
         _edit_refs.clear()
         for btn in _LAST_BUTTONS:
             bid = btn["id"]
@@ -218,7 +203,7 @@ def main(page: ft.Page):
 
             wrapper = ft.Container(content=tile_bg, left=bx, top=by, width=bw, height=bh)
             _edit_refs[bid] = wrapper
-            edit_stack.controls.append(wrapper)
+            main_stack.controls.append(wrapper)
         page.update()
 
     def _select_btn(bid):
@@ -333,11 +318,9 @@ def main(page: ft.Page):
         if _EDIT_MODE:
             _EDIT_MODE = False
             _SELECTED_BTN = None
+            slider_panel.visible = False
             if CONNECTED_HOST:
                 _save_config(CONNECTED_HOST, _LAST_BUTTONS)
-            slider_panel.visible = False
-            edit_wrapper.visible = False
-            grid.visible = True
             build_tiles()
             edit_btn.icon = ft.Icons.EDIT
             edit_btn.icon_color = FG2
@@ -347,8 +330,6 @@ def main(page: ft.Page):
             _EDIT_MODE = True
             _SELECTED_BTN = None
             _init_positions()
-            grid.visible = False
-            edit_wrapper.visible = True
             build_edit_tiles()
             edit_btn.icon = ft.Icons.EDIT_OFF
             edit_btn.icon_color = ACCENT
@@ -402,7 +383,7 @@ def main(page: ft.Page):
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
     )
 
-    page.add(header, settings_panel, progress, slider_panel, grid, edit_wrapper)
+    page.add(header, settings_panel, progress, slider_panel, main_stack)
 
 
 if __name__ == "__main__":
