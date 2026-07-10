@@ -287,8 +287,13 @@ def main(page: ft.Page):
     def try_connect(e):
         if _EDIT_MODE:
             toggle_edit_mode(e)
+        ip = ip_input.value.strip() or DEFAULT_WIFI_IP
         try:
-            do_connect(ip_input.value.strip() or DEFAULT_WIFI_IP)
+            page.client_storage.set("saved_ip", ip)
+        except Exception:
+            pass
+        try:
+            do_connect(ip)
         except Exception as ex:
             progress.visible = False
             status_text.value = f"Исключение: {type(ex).__name__}: {ex}"
@@ -298,6 +303,10 @@ def main(page: ft.Page):
     def try_usb(e):
         if _EDIT_MODE:
             toggle_edit_mode(e)
+        try:
+            page.client_storage.set("saved_ip", "127.0.0.1")
+        except Exception:
+            pass
         try:
             do_connect("127.0.0.1")
         except Exception as ex:
