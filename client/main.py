@@ -144,11 +144,12 @@ def main(page: ft.Page):
                 bgcolor=BG2, border_radius=12,
                 border=border,
                 alignment=ft.Alignment(0, 0),
+                on_click=lambda e, b=bid: _select_btn(b),
             )
 
             move_gd = ft.GestureDetector(
                 content=tile_bg,
-                on_tap=lambda e, b=bid: _select_btn(b),
+                on_pan_start=lambda e: None,
                 on_pan_update=lambda e, b=bid: _move_btn(e, b),
             )
 
@@ -160,6 +161,7 @@ def main(page: ft.Page):
                         width=hs, height=hs,
                         border_radius=hs,
                     ),
+                    on_pan_start=lambda e: None,
                     on_pan_update=lambda e, b=bid: _resize_btn(e, b),
                 )
                 btn_stack = ft.Stack([
