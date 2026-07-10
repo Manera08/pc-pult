@@ -82,6 +82,11 @@ def main(page: ft.Page):
     main_stack = ft.Stack(expand=True)
     _edit_refs = {}
 
+    try:
+        page.window.full_screen = True
+    except Exception:
+        pass
+
     sx = ft.Slider(min=0, max=800, value=0, divisions=80, width=180, height=24,
                    active_color=ACCENT, inactive_color=BG2, thumb_color=ACCENT,
                    on_change=lambda e: _slider_update())
@@ -347,9 +352,12 @@ def main(page: ft.Page):
         page.update()
 
     def _toggle_fs():
-        page.window.full_screen = not page.window.full_screen
-        fs_btn.icon = ft.Icons.FULLSCREEN_EXIT if page.window.full_screen else ft.Icons.FULLSCREEN
-        page.update()
+        try:
+            page.window.full_screen = not page.window.full_screen
+            fs_btn.icon = ft.Icons.FULLSCREEN_EXIT if page.window.full_screen else ft.Icons.FULLSCREEN
+            page.update()
+        except Exception:
+            pass
 
     def toggle_settings(e):
         global _SETTINGS_SHOWN
