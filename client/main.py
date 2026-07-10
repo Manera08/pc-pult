@@ -58,7 +58,10 @@ def main(page: ft.Page):
     page.padding = 0
     page.spacing = 0
 
-    saved_ip = page.client_storage.get("saved_ip") or DEFAULT_WIFI_IP
+    try:
+        saved_ip = page.client_storage.get("saved_ip") or DEFAULT_WIFI_IP
+    except Exception:
+        saved_ip = DEFAULT_WIFI_IP
 
     ip_input = ft.TextField(
         label="IP адрес ПК", value=saved_ip,
@@ -182,7 +185,10 @@ def main(page: ft.Page):
         if ok:
             global CONNECTED_HOST, _LAST_BUTTONS
             CONNECTED_HOST = host
-            page.client_storage.set("saved_ip", host)
+            try:
+                page.client_storage.set("saved_ip", host)
+            except Exception:
+                pass
             _LAST_BUTTONS = val.get("buttons", [])
             build_tiles()
             status_text.value = "Подключено"
