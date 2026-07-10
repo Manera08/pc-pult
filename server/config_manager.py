@@ -9,12 +9,12 @@ CONFIG_PATH = os.path.join(_BASE_DIR, "config.json")
 
 DEFAULT_CONFIG = {
     "buttons": [
-        {"id": "btn_vol_up",   "label": "🔊 Громкость +", "keys": ["volume_up"]},
-        {"id": "btn_vol_down", "label": "🔉 Громкость -", "keys": ["volume_down"]},
-        {"id": "btn_mute",     "label": "🔇 Выкл. звук",  "keys": ["volume_mute"]},
-        {"id": "btn_play",     "label": "⏯️ Play/Pause",  "keys": ["play_pause"]},
-        {"id": "btn_prev",     "label": "⏮️ Пред. трек",  "keys": ["prev_track"]},
-        {"id": "btn_next",     "label": "⏭️ След. трек",  "keys": ["next_track"]},
+        {"id": "btn_vol_up",   "label": "🔊 Громкость +", "keys": ["volume_up"],   "x": 10,  "y": 10,  "width": 100, "height": 100},
+        {"id": "btn_vol_down", "label": "🔉 Громкость -", "keys": ["volume_down"], "x": 120, "y": 10,  "width": 100, "height": 100},
+        {"id": "btn_mute",     "label": "🔇 Выкл. звук",  "keys": ["volume_mute"], "x": 230, "y": 10,  "width": 100, "height": 100},
+        {"id": "btn_play",     "label": "⏯️ Play/Pause",  "keys": ["play_pause"],  "x": 10,  "y": 120, "width": 100, "height": 100},
+        {"id": "btn_prev",     "label": "⏮️ Пред. трек",  "keys": ["prev_track"],  "x": 120, "y": 120, "width": 100, "height": 100},
+        {"id": "btn_next",     "label": "⏭️ След. трек",  "keys": ["next_track"],  "x": 230, "y": 120, "width": 100, "height": 100},
     ]
 }
 
@@ -42,7 +42,9 @@ def add_button(label="Новая кнопка", keys=None):
     config["buttons"].append({
         "id": btn_id,
         "label": label,
-        "keys": keys or []
+        "keys": keys or [],
+        "x": 10, "y": 10,
+        "width": 100, "height": 100,
     })
     save_config(config)
     return btn_id

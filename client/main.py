@@ -15,6 +15,8 @@ CONNECTED_HOST = None
 _LAST_BUTTONS = []
 _SETTINGS_SHOWN = True
 _TILE_SIZE = 100.0
+_EDIT_MODE = False
+_SELECTED_BTN = None
 _SUCCESS = "#00c853"
 _DANGER = "#ff1744"
 
@@ -50,8 +52,12 @@ def calc_cols(size):
     return 4
 
 
+def _save_config(host, buttons):
+    _http_raw("PUT", host, SERVER_PORT, "config", {"buttons": buttons})
+
+
 def main(page: ft.Page):
-    global CONNECTED_HOST, _SETTINGS_SHOWN, _TILE_SIZE, _LAST_BUTTONS
+    global CONNECTED_HOST, _SETTINGS_SHOWN, _TILE_SIZE, _LAST_BUTTONS, _EDIT_MODE, _SELECTED_BTN
     page.title = "Remote Hotkeys"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
@@ -79,20 +85,9 @@ def main(page: ft.Page):
         spacing=8, run_spacing=8, padding=10,
     )
 
-    size_slider = ft.Slider(
-        min=60, max=200, value=_TILE_SIZE, divisions=14,
-        width=150, height=30,
-        active_color=ACCENT, inactive_color=BG2,
-        thumb_color=ACCENT,
-        on_change=lambda e: _set_size(e.control.value),
-    )
-    size_label = ft.Text(str(int(_TILE_SIZE)), size=11, color=FG2)
-
-    def _set_size(val):
-        global _TILE_SIZE
-        _TILE_SIZE = val
-        size_label.value = str(int(val))
-        build_tiles()
+    edit_stack = ft.Stack(expand=True)
+    edit_wrapper = ft.Container(content=edit_stack, expand=True, visible=False)
+    _edit_refs = {}
 
     def build_tiles():
         s = int(_TILE_SIZE)
@@ -107,8 +102,7 @@ def main(page: ft.Page):
         for btn in _LAST_BUTTONS:
             bid = btn["id"]
             label = btn.get("label", "?")
-
-            tile_bg = ft.Container(
+            tile = ft.Container(
                 content=ft.Text(label, size=max(8, s // 9),
                               weight=ft.FontWeight.W_600,
                               color=FG, text_align=ft.TextAlign.CENTER),
@@ -118,50 +112,118 @@ def main(page: ft.Page):
                 ink=True,
                 on_click=lambda e, b=bid: _on_press(CONNECTED_HOST, b),
             )
-
-            hs = max(36, min(48, s // 4))
-            handle = ft.GestureDetector(
-                content=ft.Container(
-                    content=ft.Text("╱", size=hs // 2, color=ACCENT,
-                                  text_align=ft.TextAlign.CENTER),
-                    width=hs, height=hs,
-                    bgcolor="#1a1a3e", border_radius=hs // 4,
-                    alignment=ft.Alignment(1, 1),
-                ),
-                on_pan_update=lambda e: _resize_update(e),
-            )
-
-            stack = ft.Stack([tile_bg, handle], width=s, height=s)
-            grid.controls.append(stack)
-
+            grid.controls.append(tile)
         page.update()
 
-    def _resize_update(e):
-        global _TILE_SIZE
-        _TILE_SIZE = max(60, min(200, _TILE_SIZE + (e.delta_x + e.delta_y) / 2))
-        size_slider.value = _TILE_SIZE
-        size_label.value = str(int(_TILE_SIZE))
-        s = int(_TILE_SIZE)
-        cols = calc_cols(s)
-        gap = max(4, s // 12)
-        grid.runs_count = cols
-        grid.max_extent = s
-        grid.spacing = gap
-        grid.run_spacing = gap
+    def build_edit_tiles():
+        edit_stack.controls.clear()
+        _edit_refs.clear()
+        for btn in _LAST_BUTTONS:
+            bid = btn["id"]
+            label = btn.get("label", "?")
+            bw = btn.get("width", 100)
+            bh = btn.get("height", 100)
+            bx = btn.get("x", 0)
+            by = btn.get("y", 0)
+            selected = (_SELECTED_BTN == bid)
 
-        for control in grid.controls:
-            if isinstance(control, ft.Stack):
-                control.width = s
-                control.height = s
-                for child in control.controls:
-                    child.width = s
-                    child.height = s
-                    if hasattr(child, 'content') and isinstance(child.content, ft.Text):
-                        child.content.size = max(8, s // 9)
+            border = None
+            if selected:
+                border = ft.Border(
+                    left=ft.BorderSide(2, ACCENT),
+                    top=ft.BorderSide(2, ACCENT),
+                    right=ft.BorderSide(2, ACCENT),
+                    bottom=ft.BorderSide(2, ACCENT),
+                )
 
+            tile_bg = ft.Container(
+                content=ft.Text(label, size=max(8, bw // 9),
+                              weight=ft.FontWeight.W_600,
+                              color=FG, text_align=ft.TextAlign.CENTER),
+                width=bw, height=bh,
+                bgcolor=BG2, border_radius=12,
+                border=border,
+                alignment=ft.Alignment(0, 0),
+            )
+
+            move_gd = ft.GestureDetector(
+                content=tile_bg,
+                on_tap=lambda e, b=bid: _select_btn(b),
+                on_pan_update=lambda e, b=bid: _move_btn(e, b),
+            )
+
+            if selected:
+                hs = max(20, min(36, bw // 4))
+                corner_gd = ft.GestureDetector(
+                    content=ft.Container(
+                        bgcolor=ACCENT,
+                        width=hs, height=hs,
+                        border_radius=hs,
+                    ),
+                    on_pan_update=lambda e, b=bid: _resize_btn(e, b),
+                )
+                btn_stack = ft.Stack([
+                    move_gd,
+                    ft.Container(content=corner_gd, right=0, bottom=0),
+                ], width=bw, height=bh)
+            else:
+                btn_stack = move_gd
+
+            wrapper = ft.Container(content=btn_stack, left=bx, top=by)
+            _edit_refs[bid] = wrapper
+            edit_stack.controls.append(wrapper)
+        page.update()
+
+    def _select_btn(bid):
+        global _SELECTED_BTN
+        _SELECTED_BTN = bid if _SELECTED_BTN != bid else None
+        build_edit_tiles()
+
+    def _move_btn(e, bid):
+        w = _edit_refs.get(bid)
+        if not w:
+            return
+        for b in _LAST_BUTTONS:
+            if b["id"] == bid:
+                b["x"] = b.get("x", 0) + e.delta_x
+                b["y"] = b.get("y", 0) + e.delta_y
+                w.left = b["x"]
+                w.top = b["y"]
+                break
+        page.update()
+
+    def _resize_btn(e, bid):
+        w = _edit_refs.get(bid)
+        if not w:
+            return
+        for b in _LAST_BUTTONS:
+            if b["id"] == bid:
+                new_w = max(60, min(300, b.get("width", 100) + e.delta_x))
+                new_h = max(60, min(300, b.get("height", 100) + e.delta_y))
+                b["width"] = new_w
+                b["height"] = new_h
+                w.width = new_w
+                w.height = new_h
+                stack = w.content
+                stack.width = new_w
+                stack.height = new_h
+                for child in stack.controls:
+                    if isinstance(child, ft.GestureDetector):
+                        child.width = new_w
+                        child.height = new_h
+                        tile = child.content
+                        if isinstance(tile, ft.Container):
+                            tile.width = new_w
+                            tile.height = new_h
+                            if tile.content and isinstance(tile.content, ft.Text):
+                                tile.content.size = max(8, new_w // 9)
+                break
         page.update()
 
     def _on_press(host, bid):
+        if _EDIT_MODE:
+            _select_btn(bid)
+            return
         if not host:
             return
         ok, val = _http_raw("POST", host, SERVER_PORT, "press", {"id": bid})
@@ -172,6 +234,21 @@ def main(page: ft.Page):
             status_text.value = "Подключено"
             status_text.color = _SUCCESS
         page.update()
+
+    def _init_positions():
+        s = int(_TILE_SIZE)
+        cols = calc_cols(s)
+        gap = max(4, s // 12)
+        pad = 10
+        for i, btn in enumerate(_LAST_BUTTONS):
+            if "x" not in btn:
+                btn["x"] = (i % cols) * (s + gap) + pad
+            if "y" not in btn:
+                btn["y"] = (i // cols) * (s + gap) + pad
+            if "width" not in btn:
+                btn["width"] = s
+            if "height" not in btn:
+                btn["height"] = s
 
     def do_connect(host):
         progress.visible = True
@@ -189,6 +266,7 @@ def main(page: ft.Page):
             except Exception:
                 pass
             _LAST_BUTTONS = val.get("buttons", [])
+            _init_positions()
             build_tiles()
             status_text.value = "Подключено"
             status_text.color = _SUCCESS
@@ -200,6 +278,8 @@ def main(page: ft.Page):
         page.update()
 
     def try_connect(e):
+        if _EDIT_MODE:
+            toggle_edit_mode(e)
         try:
             do_connect(ip_input.value.strip() or DEFAULT_WIFI_IP)
         except Exception as ex:
@@ -209,6 +289,8 @@ def main(page: ft.Page):
             page.update()
 
     def try_usb(e):
+        if _EDIT_MODE:
+            toggle_edit_mode(e)
         try:
             do_connect("127.0.0.1")
         except Exception as ex:
@@ -219,7 +301,37 @@ def main(page: ft.Page):
 
     def refresh_config(e):
         if CONNECTED_HOST:
+            if _EDIT_MODE:
+                toggle_edit_mode(e)
             try_connect(e)
+
+    def toggle_edit_mode(e):
+        global _EDIT_MODE, _SELECTED_BTN
+
+        if _EDIT_MODE:
+            _EDIT_MODE = False
+            _SELECTED_BTN = None
+            if CONNECTED_HOST:
+                _save_config(CONNECTED_HOST, _LAST_BUTTONS)
+            edit_wrapper.visible = False
+            grid.visible = True
+            build_tiles()
+            edit_btn.icon = ft.Icons.EDIT
+            edit_btn.icon_color = FG2
+            status_text.value = "Подключено"
+            status_text.color = _SUCCESS
+        else:
+            _EDIT_MODE = True
+            _SELECTED_BTN = None
+            _init_positions()
+            grid.visible = False
+            edit_wrapper.visible = True
+            build_edit_tiles()
+            edit_btn.icon = ft.Icons.EDIT_OFF
+            edit_btn.icon_color = ACCENT
+            status_text.value = "Режим редактирования"
+            status_text.color = ACCENT
+        page.update()
 
     def toggle_settings(e):
         global _SETTINGS_SHOWN
@@ -233,10 +345,16 @@ def main(page: ft.Page):
         on_click=toggle_settings,
     )
 
+    edit_btn = ft.IconButton(
+        ft.Icons.EDIT, icon_size=18, icon_color=FG2,
+        on_click=toggle_edit_mode,
+    )
+
     header = ft.Container(
         content=ft.Row([
             ft.Text("Remote Hotkeys", size=20, weight=ft.FontWeight.BOLD, color=FG),
             ft.Container(expand=True),
+            edit_btn,
             toggle_icon,
             ft.IconButton(ft.Icons.REFRESH, icon_size=18,
                          icon_color=FG2, on_click=refresh_config),
@@ -257,16 +375,11 @@ def main(page: ft.Page):
                 ft.Container(expand=True),
                 status_text,
             ]),
-            ft.Row([
-                ft.Text("Размер:", size=11, color=FG2),
-                size_slider,
-                size_label,
-            ]),
         ], spacing=6, tight=True),
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
     )
 
-    page.add(header, settings_panel, progress, grid)
+    page.add(header, settings_panel, progress, grid, edit_wrapper)
 
 
 if __name__ == "__main__":
