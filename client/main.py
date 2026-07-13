@@ -2,6 +2,7 @@ import json, socket, http.client, os, tempfile
 import flet as ft
 
 _PRESETS_FILE = os.path.join(tempfile.gettempdir(), "rh_presets.json")
+_BTNS_FILE = os.path.join(tempfile.gettempdir(), "rh_buttons.json")
 
 DEFAULT_WIFI_IP = "192.168.1.100"
 SERVER_PORT = 8789
@@ -85,6 +86,27 @@ def main(page: ft.Page):
         try:
             with open(_PRESETS_FILE, "w") as f:
                 json.dump(_presets, f)
+        except Exception:
+            pass
+
+    def _save_buttons_locally():
+        try:
+            with open(_BTNS_FILE, "w") as f:
+                json.dump(_LAST_BUTTONS, f)
+        except Exception:
+            pass
+
+    def _restore_local_positions():
+        try:
+            with open(_BTNS_FILE, "r") as f:
+                cached = json.load(f)
+            for cb in cached:
+                for lb in _LAST_BUTTONS:
+                    if lb["id"] == cb["id"]:
+                        for k in ("x", "y", "width", "height"):
+                            if k in cb:
+                                lb[k] = cb[k]
+                        break
         except Exception:
             pass
 
@@ -350,6 +372,7 @@ def main(page: ft.Page):
             except Exception:
                 pass
             _LAST_BUTTONS = val.get("buttons", [])
+            _restore_local_positions()
             _init_positions()
             build_tiles()
             status_text.value = "Подключено"
@@ -407,6 +430,7 @@ def main(page: ft.Page):
             slider_panel.visible = False
             if CONNECTED_HOST:
                 _save_config(CONNECTED_HOST, _LAST_BUTTONS)
+            _save_buttons_locally()
             build_tiles()
             edit_btn.icon = ft.Icons.EDIT
             edit_btn.icon_color = FG2
