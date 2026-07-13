@@ -1,5 +1,7 @@
-import json, socket, http.client
+import json, socket, http.client, os, tempfile
 import flet as ft
+
+_PRESETS_FILE = os.path.join(tempfile.gettempdir(), "rh_presets.json")
 
 DEFAULT_WIFI_IP = "192.168.1.100"
 SERVER_PORT = 8789
@@ -72,17 +74,17 @@ def main(page: ft.Page):
         saved_ip = DEFAULT_WIFI_IP
 
     def _load_presets():
+        _presets.clear()
         try:
-            raw = page.client_storage.get("ip_presets")
-            loaded = json.loads(raw) if raw else []
-            _presets.clear()
-            _presets.extend(loaded)
+            with open(_PRESETS_FILE, "r") as f:
+                _presets.extend(json.load(f))
         except Exception:
-            _presets.clear()
+            pass
 
     def _save_presets():
         try:
-            page.client_storage.set("ip_presets", json.dumps(_presets))
+            with open(_PRESETS_FILE, "w") as f:
+                json.dump(_presets, f)
         except Exception:
             pass
 
