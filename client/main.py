@@ -82,11 +82,6 @@ def main(page: ft.Page):
     main_stack = ft.Stack(expand=True)
     _edit_refs = {}
 
-    try:
-        page.window.full_screen = True
-    except Exception:
-        pass
-
     sx = ft.Slider(min=0, max=800, value=0, divisions=80, width=180, height=24,
                    active_color=ACCENT, inactive_color=BG2, thumb_color=ACCENT,
                    on_change=lambda e: _slider_update())
@@ -351,14 +346,6 @@ def main(page: ft.Page):
             status_text.color = ACCENT
         page.update()
 
-    def _toggle_fs():
-        try:
-            page.window.full_screen = not page.window.full_screen
-            fs_btn.icon = ft.Icons.FULLSCREEN_EXIT if page.window.full_screen else ft.Icons.FULLSCREEN
-            page.update()
-        except Exception:
-            pass
-
     def toggle_settings(e):
         global _SETTINGS_SHOWN
         _SETTINGS_SHOWN = not _SETTINGS_SHOWN
@@ -371,10 +358,7 @@ def main(page: ft.Page):
         on_click=toggle_settings,
     )
 
-    fs_btn = ft.IconButton(
-        ft.Icons.FULLSCREEN, icon_size=18, icon_color=FG2,
-        on_click=lambda e: _toggle_fs(),
-    )
+
 
     edit_btn = ft.IconButton(
         ft.Icons.EDIT, icon_size=18, icon_color=FG2,
@@ -385,7 +369,6 @@ def main(page: ft.Page):
         content=ft.Row([
             ft.Text("Remote Hotkeys", size=20, weight=ft.FontWeight.BOLD, color=FG),
             ft.Container(expand=True),
-            fs_btn,
             edit_btn,
             toggle_icon,
             ft.IconButton(ft.Icons.REFRESH, icon_size=18,
