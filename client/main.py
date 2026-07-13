@@ -72,12 +72,13 @@ def main(page: ft.Page):
         saved_ip = DEFAULT_WIFI_IP
 
     def _load_presets():
-        global _presets
         try:
             raw = page.client_storage.get("ip_presets")
-            _presets = json.loads(raw) if raw else []
+            loaded = json.loads(raw) if raw else []
+            _presets.clear()
+            _presets.extend(loaded)
         except Exception:
-            _presets = []
+            _presets.clear()
 
     def _save_presets():
         try:
