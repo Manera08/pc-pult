@@ -32,6 +32,20 @@ flet build apk --yes --verbose
 2. Откройте приложение на телефоне, введите IP компьютера, нажмите «Подкл.»
 3. Для USB-подключения включите отладку по USB и нажмите «USB» в приложении
 
+### Открыть порт 8789 в брандмауэре
+
+Для подключения по Wi-Fi порт `8789` должен быть открыт в брандмауэре Windows:
+
+```cmd
+netsh advfirewall firewall add rule name="Remote Hotkeys" dir=in action=allow protocol=TCP localport=8789
+```
+
+Запустите эту команду от имени администратора (Win+R → `cmd` → Ctrl+Shift+Enter). Если порт уже занят, проверьте другим сервером:
+
+```cmd
+netstat -ano | findstr :8789
+```
+
 ## API
 
 | Метод | Путь | Описание |
