@@ -64,10 +64,77 @@ def main(page: ft.Page):
     page.padding = 0
     page.spacing = 0
 
+    _presets = []
+
     try:
         saved_ip = page.client_storage.get("saved_ip") or DEFAULT_WIFI_IP
     except Exception:
         saved_ip = DEFAULT_WIFI_IP
+
+    def _load_presets():
+        global _presets
+        try:
+            raw = page.client_storage.get("ip_presets")
+            _presets = json.loads(raw) if raw else []
+        except Exception:
+            _presets = []
+
+    def _save_presets():
+        try:
+            page.client_storage.set("ip_presets", json.dumps(_presets))
+        except Exception:
+            pass
+
+    _load_presets()
+
+    def _rebuild_presets():
+        preset_row.controls.clear()
+        for i, p in enumerate(_presets):
+            btn = ft.ElevatedButton(
+                p["name"], height=28, color=FG2, bgcolor=BG2,
+                data=p["ip"],
+                on_click=lambda e: _use_preset(e.control.data),
+            )
+            del_btn = ft.IconButton(
+                ft.Icons.CLOSE, icon_size=12, icon_color=_DANGER,
+                height=20, width=20,
+                data=i,
+                on_click=lambda e: _del_preset(e.control.data),
+            )
+            preset_row.controls.append(
+                ft.Row([btn, del_btn], spacing=2)
+            )
+        page.update()
+
+    def _use_preset(ip):
+        ip_input.value = ip
+        try:
+            page.client_storage.set("saved_ip", ip)
+        except Exception:
+            pass
+        try_connect(None)
+
+    def _save_preset(e):
+        ip = ip_input.value.strip()
+        if not ip:
+            return
+        name = preset_name_input.value.strip() or ip
+        for p in _presets:
+            if p["ip"] == ip:
+                p["name"] = name
+                _save_presets()
+                _rebuild_presets()
+                return
+        _presets.append({"name": name, "ip": ip})
+        _save_presets()
+        preset_name_input.value = ""
+        _rebuild_presets()
+
+    def _del_preset(idx):
+        if 0 <= idx < len(_presets):
+            _presets.pop(idx)
+            _save_presets()
+            _rebuild_presets()
 
     ip_input = ft.TextField(
         label="IP адрес ПК", value=saved_ip,
@@ -78,6 +145,13 @@ def main(page: ft.Page):
 
     status_text = ft.Text("", size=11, color=FG2)
     progress = ft.ProgressBar(visible=False, color=ACCENT, height=2)
+
+    preset_name_input = ft.TextField(
+        hint_text="Имя пресета", width=100, height=32, text_size=11,
+        border_color="#252550", focused_border_color=ACCENT,
+        bgcolor=BG2, color=FG, cursor_color=ACCENT,
+    )
+    preset_row = ft.Row(spacing=4, wrap=True, width=340)
 
     main_stack = ft.Stack(expand=True)
     _edit_refs = {}
@@ -390,11 +464,19 @@ def main(page: ft.Page):
                 ft.Container(expand=True),
                 status_text,
             ]),
+            ft.Row([
+                ft.Text("Пресеты:", size=10, color=FG2),
+                preset_name_input,
+                ft.ElevatedButton("+", height=28, width=28, color=FG2,
+                                bgcolor=BG2, on_click=_save_preset),
+            ]),
+            preset_row,
         ], spacing=6, tight=True),
         padding=ft.Padding(left=15, right=10, top=0, bottom=5),
     )
 
     page.add(header, settings_panel, progress, slider_panel, main_stack)
+    _rebuild_presets()
 
 
 if __name__ == "__main__":
