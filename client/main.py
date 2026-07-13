@@ -397,5 +397,4 @@ def main(page: ft.Page):
     page.add(header, settings_panel, progress, slider_panel, main_stack)
 
 
-if __name__ == "__main__":
-    ft.app(target=main)
+ft.run(main)
